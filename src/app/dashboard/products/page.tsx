@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Package, DollarSign, Archive, Eye } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, DollarSign, Archive, Eye, Database } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import ProductVariantModal from '@/components/dashboard/ProductVariantModal';
 import { Product, LegacyProduct } from '@/lib/types';
@@ -16,8 +16,39 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
 
   const categories = Array.from(new Set(products.map(p => p.category)));
+
+  const handleMigrateToDatabase = async () => {
+    setActionLoading('migrate');
+    setMigrationStatus('Migrating products to database...');
+    
+    try {
+      const response = await fetch('/api/migrate-products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ authorization: 'migrate-products-now' }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationStatus('✅ Products migrated successfully to database!');
+        // Reload products from database
+        window.location.reload();
+      } else {
+        setMigrationStatus('❌ Migration failed. Check console for details.');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      setMigrationStatus('❌ Migration failed. Check console for details.');
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setMigrationStatus(null), 5000);
+    }
+  };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,15 +161,36 @@ export default function ProductsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Articles</h1>
             <p className="text-gray-600 dark:text-gray-400">Manage your product catalog with variants</p>
           </div>
-          <button
-            onClick={handleAddProduct}
-            disabled={isLoading}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleMigrateToDatabase}
+              disabled={isLoading || actionLoading === 'migrate'}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading === 'migrate' ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              ) : (
+                <Database className="w-4 h-4 mr-2" />
+              )}
+              {actionLoading === 'migrate' ? 'Migrating...' : 'Migrate to DB'}
+            </button>
+            <button
+              onClick={handleAddProduct}
+              disabled={isLoading}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </button>
+          </div>
         </div>
+
+        {/* Migration Status */}
+        {migrationStatus && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
+            <p>{migrationStatus}</p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
