@@ -50,6 +50,102 @@ export default function ProductsPage() {
     }
   };
 
+  const handleAddSampleProducts = async () => {
+    setActionLoading('sample');
+    setMigrationStatus('Adding sample products...');
+    
+    const sampleProducts = [
+      {
+        title: 'Wireless Headphones',
+        article: 'WH-001',
+        description: 'High-quality wireless headphones with noise cancellation',
+        category: 'Electronics',
+        brand: 'greenhil' as const,
+        taxable: true,
+        attributes: [],
+        wholesale: 45.00,
+        retail: 99.99,
+        club: 89.99,
+        costBefore: 50.00,
+        costAfter: 45.00,
+        variants: [{
+          sku: 'WH-001-BLK',
+          size: 'One Size',
+          color: 'Black',
+          quantity: 50,
+          qty: 50,
+          price: 99.99,
+          cost: 45.00,
+          attributes: []
+        }],
+        archived: false
+      },
+      {
+        title: 'Cotton T-Shirt',
+        article: 'TS-002',
+        description: 'Comfortable cotton t-shirt for everyday wear',
+        category: 'Clothing',
+        brand: 'harican' as const,
+        taxable: true,
+        attributes: {},
+        wholesale: 8.00,
+        retail: 19.99,
+        variants: [
+          { sku: 'TS-002-BLK-M', size: 'M', color: 'Black', quantity: 25, qty: 25, price: 19.99, cost: 8.00, attributes: {} },
+          { sku: 'TS-002-BLK-L', size: 'L', color: 'Black', quantity: 30, qty: 30, price: 19.99, cost: 8.00, attributes: {} }
+        ],
+        archived: false
+      },
+      {
+        title: 'Gaming Mouse',
+        article: 'GM-003',
+        description: 'Precision gaming mouse with RGB lighting',
+        category: 'Electronics',
+        brand: 'byko' as const,
+        taxable: true,
+        attributes: {},
+        wholesale: 25.00,
+        retail: 59.99,
+        variants: [{
+          sku: 'GM-003-RGB',
+          size: 'One Size',
+          color: 'RGB',
+          quantity: 75,
+          qty: 75,
+          price: 59.99,
+          cost: 25.00,
+          attributes: {}
+        }],
+        archived: false
+      }
+    ];
+
+    try {
+      for (const productData of sampleProducts) {
+        const newProductId = generateId('product');
+        const newProduct: Product = {
+          ...productData,
+          id: newProductId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          variants: productData.variants.map((v, index) => ({
+            ...v,
+            id: generateId('variant'),
+            productId: newProductId
+          }))
+        };
+        await addProduct(newProduct);
+      }
+      setMigrationStatus('✅ Sample products added successfully!');
+    } catch (error) {
+      console.error('Error adding sample products:', error);
+      setMigrationStatus('❌ Failed to add sample products.');
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setMigrationStatus(null), 5000);
+    }
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.article.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -173,6 +269,14 @@ export default function ProductsPage() {
                 <Database className="w-4 h-4 mr-2" />
               )}
               {actionLoading === 'migrate' ? 'Migrating...' : 'Migrate to DB'}
+            </button>
+            <button
+              onClick={handleAddSampleProducts}
+              disabled={isLoading || actionLoading === 'sample'}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Package className="w-4 h-4 mr-2" />
+              {actionLoading === 'sample' ? 'Adding...' : 'Add Sample Products'}
             </button>
             <button
               onClick={handleAddProduct}
