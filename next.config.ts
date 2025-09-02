@@ -15,11 +15,9 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // Turbopack configuration for development
-  experimental: {
-    turbo: {
-      resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
-    },
+  // Turbopack configuration (updated property name)
+  turbopack: {
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
   },
 };
 
