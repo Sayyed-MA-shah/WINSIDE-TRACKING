@@ -1,12 +1,25 @@
 import { supabaseAdmin } from '../supabase'
 import { Product, Variant } from '../types'
 
+// Helper function to map database columns to TypeScript interface
+const mapProductFromDB = (dbProduct: any): Product => ({
+  ...dbProduct,
+  createdAt: new Date(dbProduct.created_at || dbProduct.createdAt)
+})
+
+// Helper function to map TypeScript interface to database columns  
+const mapProductToDB = (product: any) => ({
+  ...product,
+  created_at: product.createdAt || new Date().toISOString(),
+  createdAt: undefined // Remove camelCase version
+})
+
 export async function getAllProducts(): Promise<Product[]> {
   try {
     const { data: products, error: productsError } = await supabaseAdmin
       .from('products')
       .select('*')
-      .order('createdAt', { ascending: false })
+      .order('created_at', { ascending: false })
     
     if (productsError) throw productsError
 
@@ -19,7 +32,7 @@ export async function getAllProducts(): Promise<Product[]> {
 
     // Combine products with their variants
     const productsWithVariants = (products || []).map(product => ({
-      ...product,
+      ...mapProductFromDB(product),
       variants: (variants || []).filter(variant => variant.productId === product.id)
     }))
     
@@ -60,17 +73,12 @@ export async function getProductById(id: string): Promise<Product | null> {
 
 export async function createProduct(product: Omit<Product, 'id' | 'createdAt'>): Promise<Product> {
   try {
-    const newProduct = {
+    const newProduct = mapProductToDB({
       id: `prod-${Date.now()}`,
-      name: product.name,
-      brand: product.brand,
-      category: product.category,
-      wholesalePrice: product.wholesalePrice,
-      retailPrice: product.retailPrice,
-      article: product.article,
-      shelfNo: product.shelfNo,
-      createdAt: new Date().toISOString()
-    }
+      ...product,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
 
     const { data, error } = await supabaseAdmin
       .from('products')
@@ -98,13 +106,13 @@ export async function createProduct(product: Omit<Product, 'id' | 'createdAt'>):
       if (variantsError) throw variantsError
 
       return {
-        ...data,
+        ...mapProductFromDB(data),
         variants: createdVariants || []
       }
     }
 
     return {
-      ...data,
+      ...mapProductFromDB(data),
       variants: []
     }
   } catch (error) {

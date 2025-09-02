@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteInvoice } from '@/lib/db/invoices';
+import { deleteInvoice } from '@/lib/db/invoices-supabase';
 
 export async function DELETE(
   request: NextRequest,
