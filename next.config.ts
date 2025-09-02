@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // Turbopack configuration for development
+  experimental: {
+    turbo: {
+      resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
+    },
+  },
 };
 
 export default nextConfig;

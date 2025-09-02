@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Check, X, Clock, Users, UserCheck, AlertCircle, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
+import ClientOnly from '@/components/ClientOnly';
 
 export default function UserManagementPage() {
   const { getPendingUsers, approveUser, rejectUser, deleteUser, getAllUsers, clearAllData } = useAuth();
@@ -24,13 +25,26 @@ export default function UserManagementPage() {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  
+  // State for users to prevent hydration mismatch
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const pendingUsers = getPendingUsers();
-  const allUsers = getAllUsers();
+  // Load users after component mounts to prevent hydration issues
+  useEffect(() => {
+    setPendingUsers(getPendingUsers());
+    setAllUsers(getAllUsers());
+    setIsLoaded(true);
+  }, [getPendingUsers, getAllUsers]);
+
   const approvedUsers = allUsers.filter(u => u.status === 'approved');
 
   const handleApprove = (userId: string) => {
     approveUser(userId);
+    // Refresh the users lists
+    setPendingUsers(getPendingUsers());
+    setAllUsers(getAllUsers());
     setAlert({
       type: 'success',
       message: 'User has been approved and can now access the dashboard.'
@@ -40,6 +54,9 @@ export default function UserManagementPage() {
 
   const handleReject = (userId: string) => {
     rejectUser(userId);
+    // Refresh the users lists
+    setPendingUsers(getPendingUsers());
+    setAllUsers(getAllUsers());
     setAlert({
       type: 'info',
       message: 'User access has been rejected.'
@@ -50,6 +67,9 @@ export default function UserManagementPage() {
   const handleDelete = (userId: string, userName: string) => {
     if (confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
       deleteUser(userId);
+      // Refresh the users lists
+      setPendingUsers(getPendingUsers());
+      setAllUsers(getAllUsers());
       setAlert({
         type: 'info',
         message: 'User has been deleted successfully.'
@@ -61,6 +81,9 @@ export default function UserManagementPage() {
   const handleClearDemoData = () => {
     if (confirm('Are you sure you want to clear all demo data? This will remove all users except the admin account. This action cannot be undone.')) {
       clearAllData();
+      // Refresh the users lists
+      setPendingUsers(getPendingUsers());
+      setAllUsers(getAllUsers());
       setAlert({
         type: 'success',
         message: 'All demo data has been cleared. Only the admin account remains.'
@@ -96,6 +119,11 @@ export default function UserManagementPage() {
   return (
     <AuthGuard requireAdmin>
       <DashboardLayout>
+        <ClientOnly fallback={
+          <div className="flex items-center justify-center py-8">
+            <div className="text-gray-500 dark:text-gray-400">Loading user management...</div>
+          </div>
+        }>
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -124,6 +152,12 @@ export default function UserManagementPage() {
           )}
 
           {/* Stats Cards */}
+          {!isLoaded ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-gray-500 dark:text-gray-400">Loading user data...</div>
+            </div>
+          ) : (
+            <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <Card className="dark:bg-gray-800 dark:border-gray-700">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -273,7 +307,10 @@ export default function UserManagementPage() {
               </div>
             </CardContent>
           </Card>
+            </>
+          )}
         </div>
+        </ClientOnly>
       </DashboardLayout>
     </AuthGuard>
   );
