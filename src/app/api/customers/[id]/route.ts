@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const customer = updateCustomer(params.id, body);
+    const customer = await updateCustomer(params.id, body);
     return NextResponse.json(customer);
   } catch (error) {
     console.error('Error updating customer:', error);
@@ -23,7 +23,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    deleteCustomer(params.id);
+    await deleteCustomer(params.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting customer:', error);

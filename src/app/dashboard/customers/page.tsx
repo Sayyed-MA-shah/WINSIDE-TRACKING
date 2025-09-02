@@ -52,48 +52,27 @@ export default function CustomersPage() {
     type: 'retail' as 'retail' | 'wholesale' | 'club'
   });
 
-  // Save customers to localStorage
-  const saveToStorage = (customerList: Customer[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('customers', JSON.stringify(customerList));
-    }
-  };
-
-  // Load customers from localStorage first, then API as backup
+  // Load customers from database
   useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  const loadCustomers = () => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('customers');
-      if (stored) {
-        try {
-          const parsedCustomers = JSON.parse(stored);
-          setCustomers(parsedCustomers);
-          return;
-        } catch (error) {
-          console.error('Error parsing stored customers:', error);
-        }
-      }
-    }
-    // Fallback to API if no localStorage data
     fetchCustomers();
-  };
+  }, []);
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
+      console.log('Fetching customers from database...');
       const response = await fetch('/api/customers');
       if (response.ok) {
         const data = await response.json();
+        console.log('Loaded customers:', data.length);
         setCustomers(data);
-        saveToStorage(data); // Save to localStorage
       } else {
         console.error('Failed to fetch customers');
+        setCustomers([]); // Set empty array if API fails
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
+      setCustomers([]); // Set empty array if there's an error
     } finally {
       setLoading(false);
     }
@@ -161,21 +140,17 @@ export default function CustomersPage() {
         });
 
         console.log('Update response status:', response.status);
-        console.log('Update response headers:', response.headers);
 
         if (response.ok) {
           const updatedCustomer = await response.json();
           console.log('Updated customer:', updatedCustomer);
+          // Update local state after successful database save
           const newCustomers = customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c);
           setCustomers(newCustomers);
-          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          // Even if API fails, update localStorage directly
-          const updatedCustomer = { ...editingCustomer, ...customerData };
-          const newCustomers = customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c);
-          setCustomers(newCustomers);
-          saveToStorage(newCustomers);
-          console.log('API failed, saved to localStorage instead');
+          console.error('Failed to update customer in database');
+          setSaveError('Failed to update customer. Please try again.');
+          return;
         }
       } else {
         // Create new customer
@@ -189,27 +164,17 @@ export default function CustomersPage() {
         });
 
         console.log('Create response status:', response.status);
-        console.log('Create response headers:', response.headers);
 
         if (response.ok) {
           const newCustomer = await response.json();
           console.log('Created customer:', newCustomer);
+          // Update local state after successful database save
           const newCustomers = [...customers, newCustomer];
           setCustomers(newCustomers);
-          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          // Even if API fails, add to localStorage directly
-          const newCustomer = {
-            id: Date.now().toString(),
-            ...customerData,
-            totalSpent: 0,
-            totalOrders: 0,
-            createdAt: new Date()
-          };
-          const newCustomers = [...customers, newCustomer];
-          setCustomers(newCustomers);
-          saveToStorage(newCustomers);
-          console.log('API failed, saved to localStorage instead');
+          console.error('Failed to create customer in database');
+          setSaveError('Failed to create customer. Please try again.');
+          return;
         }
       }
 
@@ -237,23 +202,17 @@ export default function CustomersPage() {
         });
 
         if (response.ok) {
+          console.log('Customer deleted from database successfully');
+          // Update local state after successful database deletion
           const newCustomers = customers.filter(c => c.id !== customerId);
           setCustomers(newCustomers);
-          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          // Even if API fails, delete from localStorage
-          const newCustomers = customers.filter(c => c.id !== customerId);
-          setCustomers(newCustomers);
-          saveToStorage(newCustomers);
-          console.log('API failed, deleted from localStorage instead');
+          console.error('Failed to delete customer from database');
+          alert('Failed to delete customer. Please try again.');
         }
       } catch (error) {
         console.error('Error deleting customer:', error);
-        // Even if API fails, delete from localStorage
-        const newCustomers = customers.filter(c => c.id !== customerId);
-        setCustomers(newCustomers);
-        saveToStorage(newCustomers);
-        console.log('API error, deleted from localStorage instead');
+        alert('Network error. Please check your connection and try again.');
       }
     }
   };
