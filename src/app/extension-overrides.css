@@ -1,0 +1,33 @@
+/* Suppress browser extension attributes that cause hydration issues */
+*[bis_skin_checked],
+*[data-lastpass-icon-root],
+*[data-1password-root],
+*[data-bitwarden-watching],
+*[data-dashlane-root],
+*[data-adblock-key] {
+  /* These attributes are added by browser extensions and can cause hydration mismatches */
+  /* This CSS doesn't affect functionality but helps prevent visual inconsistencies */
+  outline: none;
+}
+
+/* Custom print styles for customer details */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Ensure proper rendering even with extension attributes */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
