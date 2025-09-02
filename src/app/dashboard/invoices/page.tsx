@@ -186,12 +186,14 @@ export default function InvoicesPage() {
       
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.text(invoice.customer.name, margin + 3, cardsY + 12);
-      if (invoice.customer.company) {
-        doc.text(invoice.customer.company, margin + 3, cardsY + 16);
+      if (invoice.customer) {
+        doc.text(invoice.customer.name, margin + 3, cardsY + 12);
+        if (invoice.customer.company) {
+          doc.text(invoice.customer.company, margin + 3, cardsY + 16);
+        }
+        doc.text(invoice.customer.address, margin + 3, invoice.customer.company ? cardsY + 20 : cardsY + 16);
+        doc.text(invoice.customer.phone, margin + 3, invoice.customer.company ? cardsY + 24 : cardsY + 20);
       }
-      doc.text(invoice.customer.address, margin + 3, invoice.customer.company ? cardsY + 20 : cardsY + 16);
-      doc.text(invoice.customer.phone, margin + 3, invoice.customer.company ? cardsY + 24 : cardsY + 20);
 
       // Table
       const tableStartY = cardsY + 40;
@@ -256,7 +258,7 @@ export default function InvoicesPage() {
       const summaryWidth = 55;
       
       let boxHeight = 45;
-      if (invoice.paidAmount && invoice.paidAmount > 0) boxHeight += 12;
+      if (invoice.status === 'paid' || invoice.paymentStatus === 'partial') boxHeight += 12;
       
       doc.setDrawColor(lightGray);
       doc.setLineWidth(0.3);
@@ -289,22 +291,21 @@ export default function InvoicesPage() {
       doc.text('Total Due:', labelX, currentY);
       doc.text(`£${invoice.total.toFixed(2)}`, valueX, currentY, { align: 'right' });
 
-      if (invoice.paidAmount && invoice.paidAmount > 0) {
+      if (invoice.status === 'paid') {
         currentY += 8;
         
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor('#059669');
-        doc.text('Paid:', labelX, currentY);
-        doc.text(`£${invoice.paidAmount.toFixed(2)}`, valueX, currentY, { align: 'right' });
+        doc.text('Status:', labelX, currentY);
+        doc.text('PAID', valueX, currentY, { align: 'right' });
         currentY += 6;
         
-        const balanceDue = invoice.total - invoice.paidAmount;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.setTextColor(balanceDue > 0 ? '#DC2626' : '#059669');
+        doc.setTextColor('#059669');
         doc.text('Balance Due:', labelX, currentY);
-        doc.text(`£${balanceDue.toFixed(2)}`, valueX, currentY, { align: 'right' });
+        doc.text('£0.00', valueX, currentY, { align: 'right' });
       }
 
       // Footer
@@ -611,10 +612,15 @@ export default function InvoicesPage() {
                         <p><strong>Subtotal:</strong> £{viewingInvoice.subtotal.toFixed(2)}</p>
                         <p><strong>Tax:</strong> £{viewingInvoice.tax.toFixed(2)}</p>
                         <p className="text-lg"><strong>Total:</strong> £{viewingInvoice.total.toFixed(2)}</p>
-                        {viewingInvoice.paidAmount && viewingInvoice.paidAmount > 0 && (
+                        {viewingInvoice.status === 'paid' && (
                           <>
-                            <p className="text-green-600"><strong>Paid:</strong> £{viewingInvoice.paidAmount.toFixed(2)}</p>
-                            <p className="text-lg"><strong>Balance Due:</strong> £{(viewingInvoice.total - viewingInvoice.paidAmount).toFixed(2)}</p>
+                            <p className="text-green-600"><strong>Status:</strong> PAID</p>
+                            <p className="text-lg text-green-600"><strong>Balance Due:</strong> £0.00</p>
+                          </>
+                        )}
+                        {viewingInvoice.paymentStatus === 'partial' && (
+                          <>
+                            <p className="text-yellow-600"><strong>Status:</strong> PARTIALLY PAID</p>
                           </>
                         )}
                       </div>

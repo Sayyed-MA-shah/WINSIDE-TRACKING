@@ -33,7 +33,7 @@ export default function ProductsPage() {
         category: 'Electronics',
         brand: 'greenhil' as const,
         taxable: true,
-        attributes: [],
+        attributes: ['Size', 'Color'],
         wholesale: 45.00,
         retail: 99.99,
         club: 89.99,
@@ -47,7 +47,7 @@ export default function ProductsPage() {
           qty: 50,
           price: 99.99,
           cost: 45.00,
-          attributes: []
+          attributes: {}
         }],
         archived: false
       },
@@ -58,9 +58,12 @@ export default function ProductsPage() {
         category: 'Clothing',
         brand: 'harican' as const,
         taxable: true,
-        attributes: {},
+        attributes: ['Size', 'Color'],
         wholesale: 8.00,
         retail: 19.99,
+        club: 17.99,
+        costBefore: 10.00,
+        costAfter: 8.00,
         variants: [
           { sku: 'TS-002-BLK-M', size: 'M', color: 'Black', quantity: 25, qty: 25, price: 19.99, cost: 8.00, attributes: {} },
           { sku: 'TS-002-BLK-L', size: 'L', color: 'Black', quantity: 30, qty: 30, price: 19.99, cost: 8.00, attributes: {} }
@@ -74,9 +77,12 @@ export default function ProductsPage() {
         category: 'Electronics',
         brand: 'byko' as const,
         taxable: true,
-        attributes: {},
+        attributes: ['Size', 'Color'],
         wholesale: 25.00,
         retail: 59.99,
+        club: 54.99,
+        costBefore: 30.00,
+        costAfter: 25.00,
         variants: [{
           sku: 'GM-003-RGB',
           size: 'One Size',

@@ -204,7 +204,7 @@ export default function CustomersPage() {
             ...customerData,
             totalSpent: 0,
             totalOrders: 0,
-            createdAt: new Date().toISOString()
+            createdAt: new Date()
           };
           const newCustomers = [...customers, newCustomer];
           setCustomers(newCustomers);
