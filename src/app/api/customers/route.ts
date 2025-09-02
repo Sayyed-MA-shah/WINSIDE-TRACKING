@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCustomers, createCustomer } from '@/lib/db/customers';
+import { getAllCustomers, createCustomer } from '@/lib/db/customers-supabase';
 
 export async function GET() {
   try {
