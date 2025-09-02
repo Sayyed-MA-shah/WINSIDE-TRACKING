@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCustomer, deleteCustomer } from '@/lib/db/customers';
+import { updateCustomer, deleteCustomer } from '@/lib/db/customers-supabase';
 
 export async function PUT(
   request: NextRequest,
