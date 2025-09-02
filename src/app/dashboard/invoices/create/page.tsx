@@ -184,8 +184,10 @@ export default function CreateInvoicePage() {
         status,
         paymentStatus: status, // Map status to paymentStatus
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        notes: `Paid Amount: $${paidAmount.toFixed(2)}, Balance Due: $${balanceDue.toFixed(2)}`
+        notes: `Invoice created. Paid: $${paidAmount.toFixed(2)}, Balance: $${balanceDue.toFixed(2)}`
       };
+
+      console.log('Frontend: Sending invoice data:', JSON.stringify(invoiceData, null, 2));
 
       const response = await fetch('/api/invoices', {
         method: 'POST',

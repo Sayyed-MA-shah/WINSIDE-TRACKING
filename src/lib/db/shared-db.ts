@@ -433,6 +433,8 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
     };
 
+    console.log('DB: Attempting to insert invoice with data:', JSON.stringify(invoiceData, null, 2));
+
     const { data, error } = await supabase
       .from('invoices')
       .insert(invoiceData)
@@ -440,10 +442,17 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       .single();
 
     if (error) {
-      console.error('Error adding invoice:', error);
+      console.error('DB: Error adding invoice:', error);
+      console.error('DB: Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       throw new Error('Failed to add invoice');
     }
 
+    console.log('DB: Invoice added successfully:', data);
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
