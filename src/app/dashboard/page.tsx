@@ -15,6 +15,7 @@ import {
   Store
 } from 'lucide-react';
 import { Brand, Invoice, Customer, Product } from '@/lib/types';
+import ClientOnly from '@/components/ClientOnly';
 
 const brandDisplayNames: Record<Brand, string> = {
   greenhil: 'Green Hill',
@@ -40,7 +41,7 @@ interface DashboardStats {
   brandStockValue: number;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const [selectedBrand, setSelectedBrand] = useState<Brand>('greenhil');
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
@@ -453,5 +454,13 @@ export default function DashboardPage() {
         </Card>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ClientOnly>
+      <DashboardContent />
+    </ClientOnly>
   );
 }

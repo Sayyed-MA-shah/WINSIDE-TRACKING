@@ -18,22 +18,26 @@ import {
 import { Check, X, Clock, Users, UserCheck, AlertCircle, Trash2 } from 'lucide-react';
 import ClientOnly from '@/components/ClientOnly';
 
-// Lazy load the auth hook to prevent SSR issues
-const useAuthSafe = () => {
-  const [authData, setAuthData] = useState<any>(null);
+// Safe date formatter that works on both server and client
+const formatDate = (date: Date | string | null | undefined): string => {
+  if (!date) return 'Never';
   
-  useEffect(() => {
-    // Dynamically import and use the auth hook only on client side
-    import('@/lib/hooks/useAuth').then(({ useAuth }) => {
-      // This is a workaround - in a real app you'd structure this differently
-      // For now, we'll access the auth store directly
-    });
-  }, []);
+  // Convert string to Date if needed
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
   
-  return authData;
+  // Check if date is valid
+  if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  
+  // Use a consistent format that works on both server and client
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${month}/${day}/${year}`;
 };
 
-export default function UserManagementPage() {
+function UserManagementContent() {
   const [alert, setAlert] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -44,11 +48,13 @@ export default function UserManagementPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [authMethods, setAuthMethods] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Safely load auth methods after component mounts
   useEffect(() => {
     const loadAuth = async () => {
       try {
+        setLoadError(null);
         const { useAuth } = await import('@/lib/hooks/useAuth');
         const { authStore } = await import('@/lib/stores/authStore');
         
@@ -68,6 +74,7 @@ export default function UserManagementPage() {
         setIsLoaded(true);
       } catch (error) {
         console.error('Error loading auth:', error);
+        setLoadError(`Auth loading failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         setIsLoaded(true); // Still set loaded to prevent infinite loading
       }
     };
@@ -78,59 +85,111 @@ export default function UserManagementPage() {
   const approvedUsers = allUsers.filter(u => u.status === 'approved');
 
   const handleApprove = (userId: string) => {
-    if (!authMethods) return;
-    authMethods.approveUser(userId);
-    // Refresh the users lists
-    setPendingUsers(authMethods.getPendingUsers());
-    setAllUsers(authMethods.getAllUsers());
-    setAlert({
-      type: 'success',
-      message: 'User has been approved and can now access the dashboard.'
-    });
-    setTimeout(() => setAlert(null), 5000);
-  };
-
-  const handleReject = (userId: string) => {
-    if (!authMethods) return;
-    authMethods.rejectUser(userId);
-    // Refresh the users lists
-    setPendingUsers(authMethods.getPendingUsers());
-    setAllUsers(authMethods.getAllUsers());
-    setAlert({
-      type: 'info',
-      message: 'User access has been rejected.'
-    });
-    setTimeout(() => setAlert(null), 5000);
-  };
-
-  const handleDelete = (userId: string, userName: string) => {
-    if (!authMethods) return;
-    if (confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
-      authMethods.deleteUser(userId);
-      // Refresh the users lists
-      setPendingUsers(authMethods.getPendingUsers());
-      setAllUsers(authMethods.getAllUsers());
-      setAlert({
-        type: 'info',
-        message: 'User has been deleted successfully.'
-      });
-      setTimeout(() => setAlert(null), 5000);
-    }
-  };
-
-  const handleClearDemoData = () => {
-    if (!authMethods) return;
-    if (confirm('Are you sure you want to clear all demo data? This will remove all users except the admin account. This action cannot be undone.')) {
-      authMethods.clearAllData();
+    try {
+      if (!authMethods) {
+        setAlert({
+          type: 'error',
+          message: 'Authentication system not loaded. Please refresh the page.'
+        });
+        return;
+      }
+      authMethods.approveUser(userId);
       // Refresh the users lists
       setPendingUsers(authMethods.getPendingUsers());
       setAllUsers(authMethods.getAllUsers());
       setAlert({
         type: 'success',
-        message: 'All demo data has been cleared. Only the admin account remains.'
+        message: 'User has been approved and can now access the dashboard.'
       });
-      setTimeout(() => setAlert(null), 5000);
+    } catch (error) {
+      setAlert({
+        type: 'error',
+        message: `Failed to approve user: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
     }
+    setTimeout(() => setAlert(null), 5000);
+  };
+
+  const handleReject = (userId: string) => {
+    try {
+      if (!authMethods) {
+        setAlert({
+          type: 'error',
+          message: 'Authentication system not loaded. Please refresh the page.'
+        });
+        return;
+      }
+      authMethods.rejectUser(userId);
+      // Refresh the users lists
+      setPendingUsers(authMethods.getPendingUsers());
+      setAllUsers(authMethods.getAllUsers());
+      setAlert({
+        type: 'info',
+        message: 'User access has been rejected.'
+      });
+    } catch (error) {
+      setAlert({
+        type: 'error',
+        message: `Failed to reject user: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
+    setTimeout(() => setAlert(null), 5000);
+  };
+
+  const handleDelete = (userId: string, userName: string) => {
+    try {
+      if (!authMethods) {
+        setAlert({
+          type: 'error',
+          message: 'Authentication system not loaded. Please refresh the page.'
+        });
+        return;
+      }
+      if (confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
+        authMethods.deleteUser(userId);
+        // Refresh the users lists
+        setPendingUsers(authMethods.getPendingUsers());
+        setAllUsers(authMethods.getAllUsers());
+        setAlert({
+          type: 'info',
+          message: 'User has been deleted successfully.'
+        });
+      }
+    } catch (error) {
+      setAlert({
+        type: 'error',
+        message: `Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
+    setTimeout(() => setAlert(null), 5000);
+  };
+
+  const handleClearDemoData = () => {
+    try {
+      if (!authMethods) {
+        setAlert({
+          type: 'error',
+          message: 'Authentication system not loaded. Please refresh the page.'
+        });
+        return;
+      }
+      if (confirm('Are you sure you want to clear all demo data? This will remove all users except the admin account. This action cannot be undone.')) {
+        authMethods.clearAllData();
+        // Refresh the users lists
+        setPendingUsers(authMethods.getPendingUsers());
+        setAllUsers(authMethods.getAllUsers());
+        setAlert({
+          type: 'success',
+          message: 'All demo data has been cleared. Only the admin account remains.'
+        });
+      }
+    } catch (error) {
+      setAlert({
+        type: 'error',
+        message: `Failed to clear demo data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+    }
+    setTimeout(() => setAlert(null), 5000);
   };
 
   const getStatusBadge = (status: string) => {
@@ -160,11 +219,6 @@ export default function UserManagementPage() {
   return (
     <AuthGuard requireAdmin>
       <DashboardLayout>
-        <ClientOnly fallback={
-          <div className="flex items-center justify-center py-8">
-            <div className="text-gray-500 dark:text-gray-400">Loading user management...</div>
-          </div>
-        }>
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -189,6 +243,23 @@ export default function UserManagementPage() {
             }`}>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{alert.message}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Load Error Display */}
+          {loadError && (
+            <Alert className="border-red-200 bg-red-50 text-red-800">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>System Error:</strong> {loadError}
+                <br />
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                >
+                  Reload Page
+                </button>
+              </AlertDescription>
             </Alert>
           )}
 
@@ -262,7 +333,7 @@ export default function UserManagementPage() {
                           <TableCell className="font-medium dark:text-white">{user.name}</TableCell>
                           <TableCell className="dark:text-gray-300">{user.email}</TableCell>
                           <TableCell className="dark:text-gray-300">
-                            {user.createdAt.toLocaleDateString()}
+                            {formatDate(user.createdAt)}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
@@ -323,10 +394,10 @@ export default function UserManagementPage() {
                         <TableCell>{getRoleBadge(user.role)}</TableCell>
                         <TableCell>{getStatusBadge(user.status)}</TableCell>
                         <TableCell className="dark:text-gray-300">
-                          {user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never'}
+                          {formatDate(user.lastLogin)}
                         </TableCell>
                         <TableCell className="dark:text-gray-300">
-                          {user.createdAt.toLocaleDateString()}
+                          {formatDate(user.createdAt)}
                         </TableCell>
                         <TableCell>
                           {user.role !== 'admin' && (
@@ -351,8 +422,15 @@ export default function UserManagementPage() {
             </>
           )}
         </div>
-        </ClientOnly>
       </DashboardLayout>
     </AuthGuard>
+  );
+}
+
+export default function UserManagementPage() {
+  return (
+    <ClientOnly>
+      <UserManagementContent />
+    </ClientOnly>
   );
 }

@@ -43,6 +43,7 @@ export default function CustomersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerType, setSelectedCustomerType] = useState<'retail' | 'wholesale' | 'club'>('retail');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -113,6 +114,7 @@ export default function CustomersPage() {
   };
 
   const handleSaveCustomer = async () => {
+    setSaveError(null);
     try {
       const customerData = {
         ...formData,
@@ -120,8 +122,11 @@ export default function CustomersPage() {
         type: selectedCustomerType
       };
 
+      console.log('Attempting to save customer:', customerData);
+
       if (editingCustomer) {
         // Update existing customer
+        console.log('Updating customer with ID:', editingCustomer.id);
         const response = await fetch(`/api/customers/${editingCustomer.id}`, {
           method: 'PUT',
           headers: {
@@ -130,15 +135,22 @@ export default function CustomersPage() {
           body: JSON.stringify(customerData),
         });
 
+        console.log('Update response status:', response.status);
+        console.log('Update response headers:', response.headers);
+
         if (response.ok) {
           const updatedCustomer = await response.json();
+          console.log('Updated customer:', updatedCustomer);
           setCustomers(customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c));
         } else {
-          alert('Failed to update customer. Please try again.');
+          const errorText = await response.text();
+          console.error('Update failed:', response.status, errorText);
+          setSaveError(`Failed to update customer: ${response.status} - ${errorText}`);
           return;
         }
       } else {
         // Create new customer
+        console.log('Creating new customer');
         const response = await fetch('/api/customers', {
           method: 'POST',
           headers: {
@@ -147,17 +159,24 @@ export default function CustomersPage() {
           body: JSON.stringify(customerData),
         });
 
+        console.log('Create response status:', response.status);
+        console.log('Create response headers:', response.headers);
+
         if (response.ok) {
           const newCustomer = await response.json();
+          console.log('Created customer:', newCustomer);
           setCustomers([...customers, newCustomer]);
         } else {
-          alert('Failed to create customer. Please try again.');
+          const errorText = await response.text();
+          console.error('Create failed:', response.status, errorText);
+          setSaveError(`Failed to create customer: ${response.status} - ${errorText}`);
           return;
         }
       }
 
       setIsDialogOpen(false);
       setEditingCustomer(null);
+      setSaveError(null);
       setFormData({
         name: '',
         phone: '',
@@ -167,7 +186,7 @@ export default function CustomersPage() {
       });
     } catch (error) {
       console.error('Error saving customer:', error);
-      alert('Error saving customer. Please try again.');
+      setSaveError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -320,6 +339,21 @@ export default function CustomersPage() {
                     {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
                   </DialogTitle>
                 </DialogHeader>
+                
+                {/* Error Display */}
+                {saveError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    <p><strong>Save Error:</strong></p>
+                    <p className="text-sm mt-1">{saveError}</p>
+                    <button 
+                      onClick={() => setSaveError(null)}
+                      className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+                
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name" className="dark:text-gray-300">Customer Name</Label>

@@ -193,6 +193,7 @@ class ProductStore {
 
   async addProduct(product: Product): Promise<void> {
     try {
+      console.log('Attempting to add product:', product);
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
@@ -201,21 +202,31 @@ class ProductStore {
         body: JSON.stringify(product),
       });
 
+      console.log('Add product response status:', response.status);
+
       if (response.ok) {
         const savedProduct = await response.json();
+        console.log('Product added successfully:', savedProduct);
         this.products.push(savedProduct);
         this.notifyListeners();
       } else {
-        throw new Error('Failed to save product to database');
+        const errorText = await response.text();
+        console.error('Add product failed:', response.status, errorText);
+        throw new Error(`Failed to save product to database: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error adding product:', error);
-      throw error;
+      // Add to local storage as fallback
+      console.log('Adding product locally as fallback');
+      this.products.push(product);
+      this.notifyListeners();
+      throw new Error(`Database save failed, added locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async updateProduct(id: string, updatedProduct: Product): Promise<void> {
     try {
+      console.log('Attempting to update product:', id, updatedProduct);
       const response = await fetch(`/api/products/${id}`, {
         method: 'PUT',
         headers: {
@@ -224,37 +235,59 @@ class ProductStore {
         body: JSON.stringify(updatedProduct),
       });
 
+      console.log('Update product response status:', response.status);
+
       if (response.ok) {
         const savedProduct = await response.json();
+        console.log('Product updated successfully:', savedProduct);
         const index = this.products.findIndex(p => p.id === id);
         if (index !== -1) {
           this.products[index] = savedProduct;
           this.notifyListeners();
         }
       } else {
-        throw new Error('Failed to update product in database');
+        const errorText = await response.text();
+        console.error('Update product failed:', response.status, errorText);
+        throw new Error(`Failed to update product in database: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error updating product:', error);
-      throw error;
+      // Update locally as fallback
+      console.log('Updating product locally as fallback');
+      const index = this.products.findIndex(p => p.id === id);
+      if (index !== -1) {
+        this.products[index] = updatedProduct;
+        this.notifyListeners();
+      }
+      throw new Error(`Database update failed, updated locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async deleteProduct(id: string): Promise<void> {
     try {
+      console.log('Attempting to delete product:', id);
       const response = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
       });
 
+      console.log('Delete product response status:', response.status);
+
       if (response.ok) {
+        console.log('Product deleted successfully from database');
         this.products = this.products.filter(p => p.id !== id);
         this.notifyListeners();
       } else {
-        throw new Error('Failed to delete product from database');
+        const errorText = await response.text();
+        console.error('Delete product failed:', response.status, errorText);
+        throw new Error(`Failed to delete product from database: ${response.status} - ${errorText}`);
       }
     } catch (error) {
       console.error('Error deleting product:', error);
-      throw error;
+      // Delete locally as fallback
+      console.log('Deleting product locally as fallback');
+      this.products = this.products.filter(p => p.id !== id);
+      this.notifyListeners();
+      throw new Error(`Database delete failed, deleted locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
