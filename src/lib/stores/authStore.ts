@@ -2,64 +2,54 @@ import { User, AuthState } from '../types/auth';
 
 import { generateId } from '../utils/ssr-safe';
 
-// Simple user interface
-const mockUsers: User[] = [
+// Initialize with only admin user - real users will be stored in localStorage
+const getStoredUsers = (): User[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('winside-users');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const getPendingUsers = (): User[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('winside-pending-users');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveUsers = (users: User[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('winside-users', JSON.stringify(users));
+  }
+};
+
+const savePendingUsers = (users: User[]) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('winside-pending-users', JSON.stringify(users));
+  }
+};
+
+// Only include admin user by default
+const defaultUsers: User[] = [
   {
     id: 'admin-1',
     email: 'admin@admin.com',
-    name: 'Admin User',
+    name: 'WINSIDE Admin',
     role: 'admin',
     status: 'approved',
     createdAt: new Date('2024-01-01'),
     lastLogin: new Date()
-  },
-  {
-    id: 'user-1',
-    email: 'jane.smith@company.com',
-    name: 'Jane Smith',
-    role: 'user',
-    status: 'approved',
-    createdAt: new Date('2024-01-10'),
-    lastLogin: new Date('2024-01-20'),
-  },
-  {
-    id: 'user-2',
-    email: 'bob.brown@company.com',
-    name: 'Bob Brown',
-    role: 'user',
-    status: 'approved',
-    createdAt: new Date('2024-01-12'),
-    lastLogin: new Date('2024-01-18'),
   }
 ];
 
-// Mock pending users
-const mockPendingUsers: User[] = [
-  {
-    id: 'pending-1',
-    email: 'john.doe@company.com',
-    name: 'John Doe',
-    role: 'user',
-    status: 'pending',
-    createdAt: new Date('2024-01-15'),
-  },
-  {
-    id: 'pending-2',
-    email: 'sarah.wilson@company.com',
-    name: 'Sarah Wilson',
-    role: 'user',
-    status: 'pending',
-    createdAt: new Date('2024-01-16'),
-  },
-  {
-    id: 'pending-3',
-    email: 'mike.johnson@company.com',
-    name: 'Mike Johnson',
-    role: 'user',
-    status: 'pending',
-    createdAt: new Date('2024-01-17'),
-  }
-];
+let mockUsers: User[] = [];
+let mockPendingUsers: User[] = [];
 
 class AuthStore {
   private state: AuthState = {
@@ -176,6 +166,7 @@ class AuthStore {
     };
 
     mockPendingUsers.push(newUser);
+    savePendingUsers(mockPendingUsers);
     
     this.setState({ isLoading: false });
     return { 
@@ -196,6 +187,8 @@ class AuthStore {
       user.status = 'approved';
       mockUsers.push(user);
       mockPendingUsers.splice(userIndex, 1);
+      saveUsers(mockUsers);
+      savePendingUsers(mockPendingUsers);
       this.notify();
     }
   }
@@ -204,6 +197,7 @@ class AuthStore {
     const userIndex = mockPendingUsers.findIndex(u => u.id === userId);
     if (userIndex !== -1) {
       mockPendingUsers[userIndex].status = 'rejected';
+      savePendingUsers(mockPendingUsers);
       this.notify();
     }
   }
@@ -213,6 +207,7 @@ class AuthStore {
     const approvedIndex = mockUsers.findIndex(u => u.id === userId);
     if (approvedIndex !== -1) {
       mockUsers.splice(approvedIndex, 1);
+      saveUsers(mockUsers);
       this.notify();
       return;
     }
@@ -221,12 +216,28 @@ class AuthStore {
     const pendingIndex = mockPendingUsers.findIndex(u => u.id === userId);
     if (pendingIndex !== -1) {
       mockPendingUsers.splice(pendingIndex, 1);
+      savePendingUsers(mockPendingUsers);
       this.notify();
     }
   }
 
   getAllUsers(): User[] {
     return [...mockUsers, ...mockPendingUsers];
+  }
+
+  // Clear all demo data and reset to admin only
+  clearAllData() {
+    mockUsers = [...defaultUsers];
+    mockPendingUsers = [];
+    saveUsers(mockUsers);
+    savePendingUsers(mockPendingUsers);
+    
+    // Clear current session if not admin
+    if (this.state.user && this.state.user.role !== 'admin') {
+      this.logout();
+    }
+    
+    this.notify();
   }
 
   checkPermission(requiredRole?: 'admin' | 'user'): boolean {
@@ -246,6 +257,20 @@ class AuthStore {
   // Initialize from localStorage
   init() {
     try {
+      // Load users from localStorage or use defaults
+      const storedUsers = getStoredUsers();
+      const storedPendingUsers = getPendingUsers();
+      
+      // Initialize with stored data or defaults
+      mockUsers = storedUsers.length > 0 ? storedUsers : [...defaultUsers];
+      mockPendingUsers = storedPendingUsers;
+      
+      // Save defaults if no stored users exist
+      if (storedUsers.length === 0) {
+        saveUsers(mockUsers);
+      }
+      
+      // Check for authenticated user session
       const storedUser = localStorage.getItem('auth-user');
       if (storedUser) {
         const user = JSON.parse(storedUser);
@@ -258,6 +283,11 @@ class AuthStore {
         }
       }
     } catch (error) {
+      // If there's an error, reset to defaults
+      mockUsers = [...defaultUsers];
+      mockPendingUsers = [];
+      saveUsers(mockUsers);
+      savePendingUsers(mockPendingUsers);
       localStorage.removeItem('auth-user');
     }
   }

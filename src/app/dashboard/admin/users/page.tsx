@@ -19,7 +19,7 @@ import { Check, X, Clock, Users, UserCheck, AlertCircle, Trash2 } from 'lucide-r
 import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function UserManagementPage() {
-  const { getPendingUsers, approveUser, rejectUser, deleteUser, getAllUsers } = useAuth();
+  const { getPendingUsers, approveUser, rejectUser, deleteUser, getAllUsers, clearAllData } = useAuth();
   const [alert, setAlert] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -58,6 +58,17 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleClearDemoData = () => {
+    if (confirm('Are you sure you want to clear all demo data? This will remove all users except the admin account. This action cannot be undone.')) {
+      clearAllData();
+      setAlert({
+        type: 'success',
+        message: 'All demo data has been cleared. Only the admin account remains.'
+      });
+      setTimeout(() => setAlert(null), 5000);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -86,9 +97,19 @@ export default function UserManagementPage() {
     <AuthGuard requireAdmin>
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
-            <p className="text-gray-600 dark:text-gray-400">Manage user access and permissions for the dashboard.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
+              <p className="text-gray-600 dark:text-gray-400">Manage user access and permissions for the dashboard.</p>
+            </div>
+            <Button 
+              variant="destructive" 
+              onClick={handleClearDemoData}
+              className="w-fit"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear Demo Data
+            </Button>
           </div>
 
           {alert && (

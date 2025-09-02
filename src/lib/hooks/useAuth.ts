@@ -27,6 +27,7 @@ export function useAuth() {
     rejectUser: authStore.rejectUser.bind(authStore),
     deleteUser: authStore.deleteUser.bind(authStore),
     getAllUsers: authStore.getAllUsers.bind(authStore),
+    clearAllData: authStore.clearAllData.bind(authStore),
     checkPermission: authStore.checkPermission.bind(authStore),
   };
 }
