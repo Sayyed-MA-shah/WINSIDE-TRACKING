@@ -16,11 +16,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Check, X, Clock, Users, UserCheck, AlertCircle, Trash2 } from 'lucide-react';
-import { useAuth } from '@/lib/hooks/useAuth';
 import ClientOnly from '@/components/ClientOnly';
 
+// Lazy load the auth hook to prevent SSR issues
+const useAuthSafe = () => {
+  const [authData, setAuthData] = useState<any>(null);
+  
+  useEffect(() => {
+    // Dynamically import and use the auth hook only on client side
+    import('@/lib/hooks/useAuth').then(({ useAuth }) => {
+      // This is a workaround - in a real app you'd structure this differently
+      // For now, we'll access the auth store directly
+    });
+  }, []);
+  
+  return authData;
+};
+
 export default function UserManagementPage() {
-  const { getPendingUsers, approveUser, rejectUser, deleteUser, getAllUsers, clearAllData } = useAuth();
   const [alert, setAlert] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -30,21 +43,46 @@ export default function UserManagementPage() {
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [authMethods, setAuthMethods] = useState<any>(null);
 
-  // Load users after component mounts to prevent hydration issues
+  // Safely load auth methods after component mounts
   useEffect(() => {
-    setPendingUsers(getPendingUsers());
-    setAllUsers(getAllUsers());
-    setIsLoaded(true);
-  }, [getPendingUsers, getAllUsers]);
+    const loadAuth = async () => {
+      try {
+        const { useAuth } = await import('@/lib/hooks/useAuth');
+        const { authStore } = await import('@/lib/stores/authStore');
+        
+        // Get methods from auth store directly
+        setAuthMethods({
+          getPendingUsers: () => authStore.getPendingUsers(),
+          getAllUsers: () => authStore.getAllUsers(),
+          approveUser: (id: string) => authStore.approveUser(id),
+          rejectUser: (id: string) => authStore.rejectUser(id),
+          deleteUser: (id: string) => authStore.deleteUser(id),
+          clearAllData: () => authStore.clearAllData()
+        });
+        
+        // Load initial data
+        setPendingUsers(authStore.getPendingUsers());
+        setAllUsers(authStore.getAllUsers());
+        setIsLoaded(true);
+      } catch (error) {
+        console.error('Error loading auth:', error);
+        setIsLoaded(true); // Still set loaded to prevent infinite loading
+      }
+    };
+    
+    loadAuth();
+  }, []);
 
   const approvedUsers = allUsers.filter(u => u.status === 'approved');
 
   const handleApprove = (userId: string) => {
-    approveUser(userId);
+    if (!authMethods) return;
+    authMethods.approveUser(userId);
     // Refresh the users lists
-    setPendingUsers(getPendingUsers());
-    setAllUsers(getAllUsers());
+    setPendingUsers(authMethods.getPendingUsers());
+    setAllUsers(authMethods.getAllUsers());
     setAlert({
       type: 'success',
       message: 'User has been approved and can now access the dashboard.'
@@ -53,10 +91,11 @@ export default function UserManagementPage() {
   };
 
   const handleReject = (userId: string) => {
-    rejectUser(userId);
+    if (!authMethods) return;
+    authMethods.rejectUser(userId);
     // Refresh the users lists
-    setPendingUsers(getPendingUsers());
-    setAllUsers(getAllUsers());
+    setPendingUsers(authMethods.getPendingUsers());
+    setAllUsers(authMethods.getAllUsers());
     setAlert({
       type: 'info',
       message: 'User access has been rejected.'
@@ -65,11 +104,12 @@ export default function UserManagementPage() {
   };
 
   const handleDelete = (userId: string, userName: string) => {
+    if (!authMethods) return;
     if (confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
-      deleteUser(userId);
+      authMethods.deleteUser(userId);
       // Refresh the users lists
-      setPendingUsers(getPendingUsers());
-      setAllUsers(getAllUsers());
+      setPendingUsers(authMethods.getPendingUsers());
+      setAllUsers(authMethods.getAllUsers());
       setAlert({
         type: 'info',
         message: 'User has been deleted successfully.'
@@ -79,11 +119,12 @@ export default function UserManagementPage() {
   };
 
   const handleClearDemoData = () => {
+    if (!authMethods) return;
     if (confirm('Are you sure you want to clear all demo data? This will remove all users except the admin account. This action cannot be undone.')) {
-      clearAllData();
+      authMethods.clearAllData();
       // Refresh the users lists
-      setPendingUsers(getPendingUsers());
-      setAllUsers(getAllUsers());
+      setPendingUsers(authMethods.getPendingUsers());
+      setAllUsers(authMethods.getAllUsers());
       setAlert({
         type: 'success',
         message: 'All demo data has been cleared. Only the admin account remains.'
