@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Package, DollarSign, Archive, Eye, Database } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Search, Edit, Trash2, Package, DollarSign, Archive, Eye, Database, Upload } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import ProductVariantModal from '@/components/dashboard/ProductVariantModal';
 import { Product, LegacyProduct } from '@/lib/types';
@@ -17,6 +17,7 @@ export default function ProductsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categories = Array.from(new Set(products.map(p => p.category)));
 
@@ -144,6 +145,47 @@ export default function ProductsPage() {
       setActionLoading(null);
       setTimeout(() => setMigrationStatus(null), 5000);
     }
+  };
+
+  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setActionLoading('import');
+    setMigrationStatus('Importing products from CSV...');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/products/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationStatus(`✅ Successfully imported ${result.imported} products! ${result.errors.length > 0 ? `(${result.errors.length} errors)` : ''}`);
+        // Reload products
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        setMigrationStatus(`❌ Import failed: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      setMigrationStatus('❌ Import failed. Check console for details.');
+    } finally {
+      setActionLoading(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setTimeout(() => setMigrationStatus(null), 8000);
+    }
+  };
+
+  const handleCSVImportClick = () => {
+    fileInputRef.current?.click();
   };
 
   const filteredProducts = products.filter(product => {
@@ -278,6 +320,21 @@ export default function ProductsPage() {
               <Package className="w-4 h-4 mr-2" />
               {actionLoading === 'sample' ? 'Adding...' : 'Add Sample Products'}
             </button>
+            <button
+              onClick={handleCSVImportClick}
+              disabled={isLoading || actionLoading === 'import'}
+              className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {actionLoading === 'import' ? 'Importing...' : 'Import CSV'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleCSVImport}
+              className="hidden"
+            />
             <button
               onClick={handleAddProduct}
               disabled={isLoading}
