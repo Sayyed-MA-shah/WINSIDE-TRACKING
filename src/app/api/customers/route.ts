@@ -8,34 +8,27 @@ export async function GET() {
     console.log('API: Successfully fetched customers:', customers.length);
     return NextResponse.json(customers);
   } catch (error) {
-    console.error('API: Error fetching customers, using empty fallback:', error);
-    // Return empty array as fallback instead of error
-    return NextResponse.json([]);
+    console.error('API: Error fetching customers:', error);
+    return NextResponse.json([], { status: 200 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  let body: any = {};
-  
   try {
     console.log('API: Attempting to create customer...');
-    body = await request.json();
+    const body = await request.json();
     console.log('API: Customer data received:', body);
     
-    const customer = addCustomer(body);
+    const customer = await addCustomer(body);
+    
+    if (!customer) {
+      return NextResponse.json({ error: 'Failed to create customer' }, { status: 500 });
+    }
+    
     console.log('API: Customer created successfully:', customer);
-    return NextResponse.json(customer);
+    return NextResponse.json(customer, { status: 201 });
   } catch (error) {
     console.error('API: Error creating customer:', error);
-    
-    // Create a fallback customer response with a generated ID
-    const fallbackCustomer = {
-      id: `customer_${Date.now()}`,
-      ...body,
-      createdAt: new Date().toISOString()
-    };
-    
-    console.log('API: Returning fallback customer:', fallbackCustomer);
-    return NextResponse.json(fallbackCustomer);
+    return NextResponse.json({ error: 'Failed to create customer' }, { status: 500 });
   }
 }

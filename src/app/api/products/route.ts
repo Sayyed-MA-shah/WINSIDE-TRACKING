@@ -8,34 +8,28 @@ export async function GET() {
     console.log('API: Successfully fetched products:', products.length);
     return NextResponse.json(products);
   } catch (error) {
-    console.error('API: Error fetching products, returning empty array:', error);
-    // Return empty array instead of error
-    return NextResponse.json([]);
+    console.error('API: Error fetching products:', error);
+    return NextResponse.json([], { status: 200 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  let data: any = {};
-  
   try {
     console.log('API: Attempting to create product...');
-    data = await request.json();
+    const data = await request.json();
     console.log('API: Product data:', data);
     
-    const product = addProduct(data);
-    console.log('API: Product created successfully');
+    const product = await addProduct(data);
+    
+    if (!product) {
+      console.error('API: Failed to create product in database');
+      return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    }
+    
+    console.log('API: Product created successfully:', product.id);
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
-    console.error('API: Error creating product, returning fallback:', error);
-    
-    // Return fallback product instead of error
-    const fallbackProduct = {
-      id: `product_${Date.now()}`,
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    return NextResponse.json(fallbackProduct, { status: 201 });
+    console.error('API: Error creating product:', error);
+    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
   }
 }
