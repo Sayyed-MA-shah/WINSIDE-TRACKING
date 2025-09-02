@@ -17,17 +17,20 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('API: Received invoice data:', JSON.stringify(body, null, 2));
     
     // Create the invoice
     const invoice = await createInvoice(body);
     
     if (!invoice) {
+      console.error('API: createInvoice returned null/undefined');
       return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
     }
     
+    console.log('API: Invoice created successfully:', invoice.id);
     return NextResponse.json(invoice, { status: 201 });
   } catch (error) {
-    console.error('Error creating invoice:', error);
+    console.error('API: Error creating invoice:', error);
     return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
   }
 }

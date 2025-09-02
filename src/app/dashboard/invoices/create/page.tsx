@@ -168,6 +168,8 @@ export default function CreateInvoicePage() {
       const invoiceData = {
         invoiceNumber: getNextInvoiceNumber(),
         customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        date: new Date().toISOString().split('T')[0],
         items: invoiceItems.map(item => ({
           productId: item.productId,
           variantId: item.variantId,
@@ -176,13 +178,13 @@ export default function CreateInvoicePage() {
           total: item.quantity * item.unitPrice
         })),
         subtotal,
-        discountAmount,
-        taxAmount,
+        discount: discountAmount, // Map discountAmount to discount
+        tax: taxAmount, // Map taxAmount to tax
         total: grandTotal,
-        paidAmount,
-        balanceDue,
         status,
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+        paymentStatus: status, // Map status to paymentStatus
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        notes: `Paid Amount: $${paidAmount.toFixed(2)}, Balance Due: $${balanceDue.toFixed(2)}`
       };
 
       const response = await fetch('/api/invoices', {
@@ -197,7 +199,9 @@ export default function CreateInvoicePage() {
         alert('Invoice saved successfully!');
         router.push('/dashboard/invoices');
       } else {
-        throw new Error('Failed to save invoice');
+        const errorData = await response.text();
+        console.error('API Response Error:', errorData);
+        throw new Error(`Failed to save invoice: ${errorData}`);
       }
     } catch (error) {
       console.error('Error saving invoice:', error);
