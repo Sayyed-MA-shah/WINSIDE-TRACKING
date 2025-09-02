@@ -5,6 +5,7 @@ import path from 'path';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -27,6 +28,13 @@ const initializeCustomers = () => {
   if (!fs.existsSync(CUSTOMERS_FILE)) {
     const sampleCustomers: any[] = [];
     fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(sampleCustomers, null, 2));
+  }
+};
+
+const initializeInvoices = () => {
+  if (!fs.existsSync(INVOICES_FILE)) {
+    const emptyInvoices: any[] = [];
+    fs.writeFileSync(INVOICES_FILE, JSON.stringify(emptyInvoices, null, 2));
   }
 };
 
@@ -98,4 +106,43 @@ export const deleteCustomer = (id: string) => {
   const customers = getAllCustomers();
   const filteredCustomers = customers.filter((c: any) => c.id !== id);
   saveCustomers(filteredCustomers);
+};
+
+// Invoices functions
+export const getAllInvoices = () => {
+  initializeInvoices();
+  const data = fs.readFileSync(INVOICES_FILE, 'utf-8');
+  return JSON.parse(data);
+};
+
+export const saveInvoices = (invoices: any[]) => {
+  fs.writeFileSync(INVOICES_FILE, JSON.stringify(invoices, null, 2));
+};
+
+export const addInvoice = (invoice: any) => {
+  const invoices = getAllInvoices();
+  invoices.push(invoice);
+  saveInvoices(invoices);
+  return invoice;
+};
+
+export const createInvoice = (invoice: any) => {
+  return addInvoice(invoice);
+};
+
+export const updateInvoice = (id: string, updatedInvoice: any) => {
+  const invoices = getAllInvoices();
+  const index = invoices.findIndex((i: any) => i.id === id);
+  if (index !== -1) {
+    invoices[index] = updatedInvoice;
+    saveInvoices(invoices);
+    return updatedInvoice;
+  }
+  throw new Error('Invoice not found');
+};
+
+export const deleteInvoice = (id: string) => {
+  const invoices = getAllInvoices();
+  const filteredInvoices = invoices.filter((i: any) => i.id !== id);
+  saveInvoices(filteredInvoices);
 };

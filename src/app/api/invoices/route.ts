@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllInvoices, createInvoice } from '@/lib/db/invoices-supabase';
+import { getAllInvoices, createInvoice } from '@/lib/db/shared-db';
 
 export async function GET() {
   try {
@@ -19,12 +19,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Create the invoice
-    const invoiceId = await createInvoice(body);
+    const invoice = createInvoice(body);
     
-    // Note: Stock updates would need to be implemented in Supabase
+    // Note: Stock updates would need to be implemented separately
     // For now, just create the invoice
     
-    return NextResponse.json({ id: invoiceId });
+    return NextResponse.json({ id: invoice.id || invoice });
   } catch (error) {
     console.error('Error creating invoice:', error);
     return NextResponse.json(

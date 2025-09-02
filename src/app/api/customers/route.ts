@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllCustomers, createCustomer } from '@/lib/db/customers-supabase';
+import { getAllCustomers, addCustomer } from '@/lib/db/shared-db';
 
 export async function GET() {
   try {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     body = await request.json();
     console.log('API: Customer data received:', body);
     
-    const customer = await createCustomer(body);
+    const customer = addCustomer(body);
     console.log('API: Customer created successfully:', customer);
     return NextResponse.json(customer);
   } catch (error) {

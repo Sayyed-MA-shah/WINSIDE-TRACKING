@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateCustomer, deleteCustomer } from '@/lib/db/customers-supabase';
+import { updateCustomer, deleteCustomer } from '@/lib/db/shared-db';
 
 export async function PUT(
   request: NextRequest,
@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const customer = await updateCustomer(params.id, body);
+    const customer = updateCustomer(params.id, body);
     return NextResponse.json(customer);
   } catch (error) {
     console.error('Error updating customer:', error);
@@ -23,7 +23,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await deleteCustomer(params.id);
+    deleteCustomer(params.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting customer:', error);
