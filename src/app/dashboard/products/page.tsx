@@ -9,12 +9,13 @@ import { useProducts } from '@/lib/stores/productStore';
 import { generateId } from '@/lib/utils/ssr-safe';
 
 export default function ProductsPage() {
-  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { products, isLoading, error, addProduct, updateProduct, deleteProduct } = useProducts();
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const categories = Array.from(new Set(products.map(p => p.category)));
 
@@ -38,50 +39,74 @@ export default function ProductsPage() {
     setShowModal(true);
   };
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (editingProduct) {
-      // Update existing product
-      const updatedProduct: Product = {
-        ...productData,
-        id: editingProduct.id,
-        createdAt: editingProduct.createdAt,
-        updatedAt: new Date(),
-        variants: productData.variants.map((v, index) => ({
-          ...v,
-          id: v.id || `${editingProduct.id}-variant-${index}`,
-          productId: editingProduct.id
-        }))
-      };
-      updateProduct(editingProduct.id, updatedProduct);
-    } else {
-      // Add new product
-      const newProductId = generateId('product');
-      const newProduct: Product = {
-        ...productData,
-        id: newProductId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        variants: productData.variants.map((v, index) => ({
-          ...v,
-          id: generateId('variant'),
-          productId: newProductId
-        }))
-      };
-      addProduct(newProduct);
+  const handleSaveProduct = async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setActionLoading('save');
+    try {
+      if (editingProduct) {
+        // Update existing product
+        const updatedProduct: Product = {
+          ...productData,
+          id: editingProduct.id,
+          createdAt: editingProduct.createdAt,
+          updatedAt: new Date(),
+          variants: productData.variants.map((v, index) => ({
+            ...v,
+            id: v.id || `${editingProduct.id}-variant-${index}`,
+            productId: editingProduct.id
+          }))
+        };
+        await updateProduct(editingProduct.id, updatedProduct);
+      } else {
+        // Add new product
+        const newProductId = generateId('product');
+        const newProduct: Product = {
+          ...productData,
+          id: newProductId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          variants: productData.variants.map((v, index) => ({
+            ...v,
+            id: generateId('variant'),
+            productId: newProductId
+          }))
+        };
+        await addProduct(newProduct);
+      }
+      setShowModal(false);
+      setEditingProduct(null);
+    } catch (error) {
+      console.error('Error saving product:', error);
+      // Error handling is managed by the store
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      deleteProduct(productId);
+      setActionLoading(`delete-${productId}`);
+      try {
+        await deleteProduct(productId);
+      } catch (error) {
+        console.error('Error deleting product:', error);
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
-  const handleArchiveProduct = (productId: string) => {
+  const handleArchiveProduct = async (productId: string) => {
     const product = products.find(p => p.id === productId);
     if (product) {
-      const updatedProduct = { ...product, archived: !product.archived, updatedAt: new Date() };
-      updateProduct(productId, updatedProduct);
+      setActionLoading(`archive-${productId}`);
+      try {
+        const updatedProduct = { ...product, archived: !product.archived, updatedAt: new Date() };
+        await updateProduct(productId, updatedProduct);
+      } catch (error) {
+        console.error('Error archiving product:', error);
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -107,13 +132,29 @@ export default function ProductsPage() {
           </div>
           <button
             onClick={handleAddProduct}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center"
+            disabled={isLoading}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Product
           </button>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p><strong>Error:</strong> {error}</p>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading products...</span>
+          </div>
+        ) : (
+        <>
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
@@ -279,20 +320,30 @@ export default function ProductsPage() {
                     </button>
                     <button
                       onClick={() => handleArchiveProduct(product.id)}
-                      className={`flex items-center px-3 py-1 text-sm rounded ${
+                      disabled={actionLoading === `archive-${product.id}`}
+                      className={`flex items-center px-3 py-1 text-sm rounded disabled:opacity-50 disabled:cursor-not-allowed ${
                         product.archived
                           ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
                           : 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30'
                       }`}
                     >
-                      <Archive className="w-3 h-3 mr-1" />
+                      {actionLoading === `archive-${product.id}` ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
+                      ) : (
+                        <Archive className="w-3 h-3 mr-1" />
+                      )}
                       {product.archived ? 'Unarchive' : 'Archive'}
                     </button>
                     <button
                       onClick={() => handleDeleteProduct(product.id)}
-                      className="flex items-center px-3 py-1 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+                      disabled={actionLoading === `delete-${product.id}`}
+                      className="flex items-center px-3 py-1 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Trash2 className="w-3 h-3 mr-1" />
+                      {actionLoading === `delete-${product.id}` ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
+                      ) : (
+                        <Trash2 className="w-3 h-3 mr-1" />
+                      )}
                       Delete
                     </button>
                   </div>
@@ -321,6 +372,8 @@ export default function ProductsPage() {
               </button>
             )}
           </div>
+        )}
+        </>
         )}
       </div>
 
