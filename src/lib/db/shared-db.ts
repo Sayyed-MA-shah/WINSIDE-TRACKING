@@ -14,39 +14,12 @@ if (!fs.existsSync(DATA_DIR)) {
 // Initialize with sample data if files don't exist
 const initializeProducts = () => {
   if (!fs.existsSync(PRODUCTS_FILE)) {
-    const sampleProducts = [
-      {
-        id: 'prod-1',
-        title: 'Wireless Headphones',
-        article: 'WH-001',
-        description: 'High-quality wireless headphones',
-        category: 'Electronics',
-        brand: 'greenhil',
-        taxable: true,
-        attributes: [],
-        wholesale: 45.00,
-        retail: 99.99,
-        club: 89.99,
-        costBefore: 50.00,
-        costAfter: 45.00,
-        archived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        variants: [{
-          id: 'var-1',
-          productId: 'prod-1',
-          sku: 'WH-001-BLK',
-          size: 'One Size',
-          color: 'Black',
-          quantity: 50,
-          qty: 50,
-          price: 99.99,
-          cost: 45.00,
-          attributes: {}
-        }]
-      }
-    ];
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(sampleProducts, null, 2));
+    const emptyProducts: any[] = [];
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(emptyProducts, null, 2));
+  } else {
+    // Clear existing data to start fresh
+    const emptyProducts: any[] = [];
+    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(emptyProducts, null, 2));
   }
 };
 

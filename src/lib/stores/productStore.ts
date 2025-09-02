@@ -16,20 +16,13 @@ class ProductStore {
   private loadFromLocalStorage(): void {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(this.STORAGE_KEY);
-        if (stored) {
-          this.products = JSON.parse(stored);
-          console.log('Loaded products from localStorage:', this.products.length);
-        } else {
-          // Add sample products if none exist
-          this.products = this.getSampleProducts();
-          this.saveToLocalStorage();
-          console.log('Added sample products to localStorage');
-        }
+        // Clear any existing data to start fresh
+        localStorage.removeItem(this.STORAGE_KEY);
+        this.products = [];
+        console.log('Cleared all products - starting fresh');
       } catch (error) {
-        console.error('Error loading from localStorage:', error);
-        this.products = this.getSampleProducts();
-        this.saveToLocalStorage();
+        console.error('Error clearing localStorage:', error);
+        this.products = [];
       }
     }
     this.isInitialized = true;
@@ -53,88 +46,8 @@ class ProductStore {
   }
 
   private getSampleProducts(): Product[] {
-    return [
-      {
-        id: 'prod-1',
-        article: 'BGA-1012',
-        title: 'Boxing Gloves Amok',
-        category: 'Boxing Gloves',
-        brand: 'byko',
-        taxable: true,
-        attributes: ['Size', 'Color'],
-        mediaMain: undefined,
-        costBefore: 12.00,
-        costAfter: 16.00,
-        wholesale: 35.00,
-        retail: 49.99,
-        club: 42.49,
-        archived: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        variants: [
-          {
-            id: 'variant-1',
-            productId: 'prod-1',
-            sku: 'BGA-1012-BLACK-10OZ',
-            attributes: { Size: '10oz', Color: 'Black' },
-            qty: 9,
-            wholesale: undefined,
-            retail: undefined,
-            costAfter: undefined
-          },
-          {
-            id: 'variant-2',
-            productId: 'prod-1',
-            sku: 'BGA-1012-BLACK-12OZ',
-            attributes: { Size: '12oz', Color: 'Black' },
-            qty: 10,
-            wholesale: undefined,
-            retail: undefined,
-            costAfter: undefined
-          }
-        ]
-      },
-      {
-        id: 'prod-2',
-        article: 'BGC-1011',
-        title: 'Boxing Gloves ClassX',
-        category: 'Boxing Gloves',
-        brand: 'harican',
-        taxable: true,
-        attributes: ['Size', 'Color'],
-        mediaMain: undefined,
-        costBefore: 14.00,
-        costAfter: 18.00,
-        wholesale: 41.00,
-        retail: 69.99,
-        club: 59.49,
-        archived: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        variants: [
-          {
-            id: 'variant-3',
-            productId: 'prod-2',
-            sku: 'BGC-1011-BLACK-10OZ',
-            attributes: { Size: '10oz', Color: 'Black' },
-            qty: 4,
-            wholesale: undefined,
-            retail: undefined,
-            costAfter: undefined
-          },
-          {
-            id: 'variant-4',
-            productId: 'prod-2',
-            sku: 'BGC-1011-BLACK-12OZ',
-            attributes: { Size: '12oz', Color: 'Black' },
-            qty: 4,
-            wholesale: undefined,
-            retail: undefined,
-            costAfter: undefined
-          }
-        ]
-      }
-    ];
+    // Return empty array - no sample products for fresh start
+    return [];
   }
 
   getProductsByBrand(brand: Brand): Product[] {
