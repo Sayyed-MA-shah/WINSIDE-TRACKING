@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllProducts, createProduct, updateProduct, deleteProduct } from '@/lib/db/products-supabase';
+import { getAllProducts, addProduct } from '@/lib/db/shared-db';
 
 export async function GET() {
   try {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     data = await request.json();
     console.log('API: Product data:', data);
     
-    const product = await createProduct(data);
+    const product = addProduct(data);
     console.log('API: Product created successfully');
     return NextResponse.json(product, { status: 201 });
   } catch (error) {

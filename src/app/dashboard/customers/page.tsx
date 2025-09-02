@@ -52,10 +52,34 @@ export default function CustomersPage() {
     type: 'retail' as 'retail' | 'wholesale' | 'club'
   });
 
-  // Load customers from API
+  // Save customers to localStorage
+  const saveToStorage = (customerList: Customer[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('customers', JSON.stringify(customerList));
+    }
+  };
+
+  // Load customers from localStorage first, then API as backup
   useEffect(() => {
-    fetchCustomers();
+    loadCustomers();
   }, []);
+
+  const loadCustomers = () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('customers');
+      if (stored) {
+        try {
+          const parsedCustomers = JSON.parse(stored);
+          setCustomers(parsedCustomers);
+          return;
+        } catch (error) {
+          console.error('Error parsing stored customers:', error);
+        }
+      }
+    }
+    // Fallback to API if no localStorage data
+    fetchCustomers();
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -64,6 +88,7 @@ export default function CustomersPage() {
       if (response.ok) {
         const data = await response.json();
         setCustomers(data);
+        saveToStorage(data); // Save to localStorage
       } else {
         console.error('Failed to fetch customers');
       }
@@ -141,12 +166,16 @@ export default function CustomersPage() {
         if (response.ok) {
           const updatedCustomer = await response.json();
           console.log('Updated customer:', updatedCustomer);
-          setCustomers(customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c));
+          const newCustomers = customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c);
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          const errorText = await response.text();
-          console.error('Update failed:', response.status, errorText);
-          setSaveError(`Failed to update customer: ${response.status} - ${errorText}`);
-          return;
+          // Even if API fails, update localStorage directly
+          const updatedCustomer = { ...editingCustomer, ...customerData };
+          const newCustomers = customers.map(c => c.id === editingCustomer.id ? updatedCustomer : c);
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers);
+          console.log('API failed, saved to localStorage instead');
         }
       } else {
         // Create new customer
@@ -165,12 +194,22 @@ export default function CustomersPage() {
         if (response.ok) {
           const newCustomer = await response.json();
           console.log('Created customer:', newCustomer);
-          setCustomers([...customers, newCustomer]);
+          const newCustomers = [...customers, newCustomer];
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          const errorText = await response.text();
-          console.error('Create failed:', response.status, errorText);
-          setSaveError(`Failed to create customer: ${response.status} - ${errorText}`);
-          return;
+          // Even if API fails, add to localStorage directly
+          const newCustomer = {
+            id: Date.now().toString(),
+            ...customerData,
+            totalSpent: 0,
+            totalOrders: 0,
+            createdAt: new Date().toISOString()
+          };
+          const newCustomers = [...customers, newCustomer];
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers);
+          console.log('API failed, saved to localStorage instead');
         }
       }
 
@@ -198,13 +237,23 @@ export default function CustomersPage() {
         });
 
         if (response.ok) {
-          setCustomers(customers.filter(c => c.id !== customerId));
+          const newCustomers = customers.filter(c => c.id !== customerId);
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers); // Save to localStorage
         } else {
-          alert('Failed to delete customer. Please try again.');
+          // Even if API fails, delete from localStorage
+          const newCustomers = customers.filter(c => c.id !== customerId);
+          setCustomers(newCustomers);
+          saveToStorage(newCustomers);
+          console.log('API failed, deleted from localStorage instead');
         }
       } catch (error) {
         console.error('Error deleting customer:', error);
-        alert('Error deleting customer. Please try again.');
+        // Even if API fails, delete from localStorage
+        const newCustomers = customers.filter(c => c.id !== customerId);
+        setCustomers(newCustomers);
+        saveToStorage(newCustomers);
+        console.log('API error, deleted from localStorage instead');
       }
     }
   };

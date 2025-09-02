@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProductById, updateProduct, deleteProduct } from '@/lib/db/products-supabase';
+import { getAllProducts, updateProduct, deleteProduct } from '@/lib/db/shared-db';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const product = await getProductById(params.id);
+    const products = getAllProducts();
+    const product = products.find((p: any) => p.id === params.id);
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
@@ -28,7 +29,7 @@ export async function PUT(
     data = await request.json();
     console.log('API: Update data:', data);
     
-    const product = await updateProduct(params.id, data);
+    const product = updateProduct(params.id, data);
     console.log('API: Product updated successfully');
     return NextResponse.json(product);
   } catch (error) {
@@ -52,7 +53,7 @@ export async function DELETE(
 ) {
   try {
     console.log('API: Attempting to delete product:', params.id);
-    await deleteProduct(params.id);
+    deleteProduct(params.id);
     console.log('API: Product deleted successfully');
     return NextResponse.json({ message: 'Product deleted successfully' });
   } catch (error) {
