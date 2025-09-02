@@ -1,53 +1,50 @@
 import React from 'react';
 import { Product, Brand, BrandStats } from '@/lib/types';
 
-// LocalStorage-backed store for immediate persistence
+// Supabase-backed store for persistent data
 class ProductStore {
   private products: Product[] = [];
   private listeners: Array<() => void> = [];
   private isInitialized: boolean = false;
-  private readonly STORAGE_KEY = 'winside_products';
+  private isLoading: boolean = false;
 
   constructor() {
-    // Load from localStorage immediately
-    this.loadFromLocalStorage();
+    // Don't load anything in constructor - wait for explicit initialization
   }
 
-  private loadFromLocalStorage(): void {
-    if (typeof window !== 'undefined') {
-      try {
-        // Clear any existing data to start fresh
-        localStorage.removeItem(this.STORAGE_KEY);
-        this.products = [];
-        console.log('Cleared all products - starting fresh');
-      } catch (error) {
-        console.error('Error clearing localStorage:', error);
+  private async loadFromDatabase(): Promise<void> {
+    try {
+      console.log('Loading products from database...');
+      const response = await fetch('/api/products');
+      if (response.ok) {
+        this.products = await response.json();
+        console.log('Loaded products from database:', this.products.length);
+      } else {
+        console.error('Failed to load products from database');
         this.products = [];
       }
-    }
-    this.isInitialized = true;
-  }
-
-  private saveToLocalStorage(): void {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.products));
-        console.log('Saved products to localStorage:', this.products.length);
-      } catch (error) {
-        console.error('Error saving to localStorage:', error);
-      }
+    } catch (error) {
+      console.error('Error loading products from database:', error);
+      this.products = [];
     }
   }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    this.loadFromLocalStorage();
+    this.isLoading = true;
+    await this.loadFromDatabase();
+    this.isInitialized = true;
+    this.isLoading = false;
     this.notifyListeners();
   }
 
   private getSampleProducts(): Product[] {
     // Return empty array - no sample products for fresh start
     return [];
+  }
+
+  getIsLoading(): boolean {
+    return this.isLoading;
   }
 
   getProductsByBrand(brand: Brand): Product[] {
@@ -121,36 +118,31 @@ class ProductStore {
 
   async addProduct(product: Product): Promise<void> {
     try {
-      console.log('Adding product to localStorage:', product.title);
+      console.log('Adding product to database:', product.title);
       
-      // Add to local products array
-      this.products.push(product);
+      // Save to database first
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(product),
+      });
       
-      // Save to localStorage immediately
-      this.saveToLocalStorage();
-      
-      // Notify listeners
-      this.notifyListeners();
-      
-      console.log('Product added successfully to localStorage');
-      
-      // Try to sync with database in background (don't throw on failure)
-      try {
-        const response = await fetch('/api/products', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(product),
-        });
+      if (response.ok) {
+        const savedProduct = await response.json();
+        console.log('Product saved to database successfully');
         
-        if (response.ok) {
-          console.log('Product also synced to database');
-        } else {
-          console.log('Database sync failed, but product saved locally');
-        }
-      } catch (dbError) {
-        console.log('Database sync failed, but product saved locally:', dbError);
+        // Add to local products array
+        this.products.push(savedProduct);
+        
+        // Notify listeners
+        this.notifyListeners();
+        
+        console.log('Product added successfully');
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save product');
       }
       
     } catch (error) {
@@ -161,39 +153,34 @@ class ProductStore {
 
   async updateProduct(id: string, updatedProduct: Product): Promise<void> {
     try {
-      console.log('Updating product in localStorage:', id);
+      console.log('Updating product in database:', id);
       
-      // Update in local products array
-      const index = this.products.findIndex(p => p.id === id);
-      if (index !== -1) {
-        this.products[index] = updatedProduct;
-        
-        // Save to localStorage immediately
-        this.saveToLocalStorage();
-        
-        // Notify listeners
-        this.notifyListeners();
-        
-        console.log('Product updated successfully in localStorage');
-      }
+      // Update in database first
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedProduct),
+      });
       
-      // Try to sync with database in background (don't throw on failure)
-      try {
-        const response = await fetch(`/api/products/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updatedProduct),
-        });
+      if (response.ok) {
+        const savedProduct = await response.json();
+        console.log('Product updated in database successfully');
         
-        if (response.ok) {
-          console.log('Product also synced to database');
-        } else {
-          console.log('Database sync failed, but product updated locally');
+        // Update in local products array
+        const index = this.products.findIndex(p => p.id === id);
+        if (index !== -1) {
+          this.products[index] = savedProduct;
+          
+          // Notify listeners
+          this.notifyListeners();
+          
+          console.log('Product updated successfully');
         }
-      } catch (dbError) {
-        console.log('Database sync failed, but product updated locally:', dbError);
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update product');
       }
       
     } catch (error) {
@@ -204,32 +191,26 @@ class ProductStore {
 
   async deleteProduct(id: string): Promise<void> {
     try {
-      console.log('Deleting product from localStorage:', id);
+      console.log('Deleting product from database:', id);
       
-      // Delete from local products array
-      this.products = this.products.filter(p => p.id !== id);
+      // Delete from database first
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+      });
       
-      // Save to localStorage immediately
-      this.saveToLocalStorage();
-      
-      // Notify listeners
-      this.notifyListeners();
-      
-      console.log('Product deleted successfully from localStorage');
-      
-      // Try to sync with database in background (don't throw on failure)
-      try {
-        const response = await fetch(`/api/products/${id}`, {
-          method: 'DELETE',
-        });
+      if (response.ok) {
+        console.log('Product deleted from database successfully');
         
-        if (response.ok) {
-          console.log('Product also deleted from database');
-        } else {
-          console.log('Database sync failed, but product deleted locally');
-        }
-      } catch (dbError) {
-        console.log('Database sync failed, but product deleted locally:', dbError);
+        // Delete from local products array
+        this.products = this.products.filter(p => p.id !== id);
+        
+        // Notify listeners
+        this.notifyListeners();
+        
+        console.log('Product deleted successfully');
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete product');
       }
       
     } catch (error) {
