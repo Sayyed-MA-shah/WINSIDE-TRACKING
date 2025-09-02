@@ -1,296 +1,595 @@
-// Enhanced shared database using JSON files with better structure and data management
-import fs from 'fs';
-import path from 'path';
+// Supabase database implementation for WINSIDE Business Dashboard
+import { supabase } from '@/lib/supabase';
 import { Product, Customer, Invoice } from '@/lib/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
-const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
-
-// Database interface for better type safety
-interface DatabaseState {
-  products: Product[];
-  customers: Customer[];
-  invoices: Invoice[];
-  lastUpdated: string;
-  version: string;
-}
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Initialize database files with proper structure
-const initializeProducts = (): Product[] => {
-  if (!fs.existsSync(PRODUCTS_FILE)) {
-    const emptyProducts: Product[] = [];
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(emptyProducts, null, 2));
-    return emptyProducts;
-  }
-  try {
-    const data = fs.readFileSync(PRODUCTS_FILE, 'utf-8');
-    return JSON.parse(data) as Product[];
-  } catch (error) {
-    console.error('Error reading products file:', error);
-    const emptyProducts: Product[] = [];
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(emptyProducts, null, 2));
-    return emptyProducts;
-  }
-};
-
-const initializeCustomers = (): Customer[] => {
-  if (!fs.existsSync(CUSTOMERS_FILE)) {
-    const emptyCustomers: Customer[] = [];
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(emptyCustomers, null, 2));
-    return emptyCustomers;
-  }
-  try {
-    const data = fs.readFileSync(CUSTOMERS_FILE, 'utf-8');
-    return JSON.parse(data) as Customer[];
-  } catch (error) {
-    console.error('Error reading customers file:', error);
-    const emptyCustomers: Customer[] = [];
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(emptyCustomers, null, 2));
-    return emptyCustomers;
-  }
-};
-
-const initializeInvoices = (): Invoice[] => {
-  if (!fs.existsSync(INVOICES_FILE)) {
-    const emptyInvoices: Invoice[] = [];
-    fs.writeFileSync(INVOICES_FILE, JSON.stringify(emptyInvoices, null, 2));
-    return emptyInvoices;
-  }
-  try {
-    const data = fs.readFileSync(INVOICES_FILE, 'utf-8');
-    return JSON.parse(data) as Invoice[];
-  } catch (error) {
-    console.error('Error reading invoices file:', error);
-    const emptyInvoices: Invoice[] = [];
-    fs.writeFileSync(INVOICES_FILE, JSON.stringify(emptyInvoices, null, 2));
-    return emptyInvoices;
-  }
-};
-
-// Backup function for data safety
-export const createBackup = () => {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupDir = path.join(DATA_DIR, 'backups', timestamp);
-  
-  if (!fs.existsSync(backupDir)) {
-    fs.mkdirSync(backupDir, { recursive: true });
-  }
-  
-  try {
-    if (fs.existsSync(PRODUCTS_FILE)) {
-      fs.copyFileSync(PRODUCTS_FILE, path.join(backupDir, 'products.json'));
-    }
-    if (fs.existsSync(CUSTOMERS_FILE)) {
-      fs.copyFileSync(CUSTOMERS_FILE, path.join(backupDir, 'customers.json'));
-    }
-    if (fs.existsSync(INVOICES_FILE)) {
-      fs.copyFileSync(INVOICES_FILE, path.join(backupDir, 'invoices.json'));
-    }
-    return { success: true, backupPath: backupDir };
-  } catch (error) {
-    console.error('Backup failed:', error);
-    return { success: false, error };
-  }
-};
-
 // Products functions
-export const getAllProducts = (): Product[] => {
-  return initializeProducts();
-};
-
-export const saveProducts = (products: Product[]): void => {
+export const getAllProducts = async (): Promise<Product[]> => {
   try {
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2));
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching products:', error);
+      return [];
+    }
+
+    // Transform database response to match Product interface
+    return (data || []).map(product => ({
+      id: product.id,
+      article: product.article,
+      title: product.title,
+      category: product.category,
+      brand: product.brand,
+      taxable: product.taxable,
+      attributes: product.attributes || [],
+      mediaMain: product.media_main,
+      archived: product.archived,
+      wholesale: product.wholesale,
+      retail: product.retail,
+      club: product.club,
+      costBefore: product.cost_before,
+      costAfter: product.cost_after,
+      variants: product.variants || [],
+      createdAt: new Date(product.created_at),
+      updatedAt: new Date(product.updated_at)
+    }));
   } catch (error) {
-    console.error('Error saving products:', error);
-    throw new Error('Failed to save products');
+    console.error('Error in getAllProducts:', error);
+    return [];
   }
 };
 
-export const addProduct = (product: Product): Product => {
-  const products = getAllProducts();
-  const newProduct = {
-    ...product,
-    id: product.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  products.push(newProduct);
-  saveProducts(products);
-  return newProduct;
-};
-
-export const updateProduct = (id: string, updatedProduct: Partial<Product>): Product => {
-  const products = getAllProducts();
-  const index = products.findIndex((p: Product) => p.id === id);
-  if (index !== -1) {
-    products[index] = {
-      ...products[index],
-      ...updatedProduct,
-      id: products[index].id, // Preserve original ID
-      updatedAt: new Date()
+export const addProduct = async (product: any): Promise<any> => {
+  try {
+    const productData = {
+      article: product.article,
+      title: product.title,
+      category: product.category,
+      brand: product.brand,
+      taxable: product.taxable ?? true,
+      attributes: product.attributes || [],
+      media_main: product.mediaMain || null,
+      archived: product.archived ?? false,
+      wholesale: product.wholesale,
+      retail: product.retail,
+      club: product.club,
+      cost_before: product.costBefore,
+      cost_after: product.costAfter,
+      variants: product.variants || []
     };
-    saveProducts(products);
-    return products[index];
+
+    const { data, error } = await supabase
+      .from('products')
+      .insert(productData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding product:', error);
+      throw new Error('Failed to add product');
+    }
+
+    return {
+      id: data.id,
+      article: data.article,
+      title: data.title,
+      category: data.category,
+      brand: data.brand,
+      taxable: data.taxable,
+      attributes: data.attributes || [],
+      mediaMain: data.media_main,
+      archived: data.archived,
+      wholesale: data.wholesale,
+      retail: data.retail,
+      club: data.club,
+      costBefore: data.cost_before,
+      costAfter: data.cost_after,
+      variants: data.variants || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    };
+  } catch (error) {
+    console.error('Error in addProduct:', error);
+    throw error;
   }
-  throw new Error('Product not found');
 };
 
-export const deleteProduct = (id: string): boolean => {
-  const products = getAllProducts();
-  const initialLength = products.length;
-  const filteredProducts = products.filter((p: Product) => p.id !== id);
-  if (filteredProducts.length === initialLength) {
-    throw new Error('Product not found');
+export const updateProduct = async (id: string, updates: any): Promise<any> => {
+  try {
+    const updateData: any = {};
+    
+    if (updates.article !== undefined) updateData.article = updates.article;
+    if (updates.title !== undefined) updateData.title = updates.title;
+    if (updates.category !== undefined) updateData.category = updates.category;
+    if (updates.brand !== undefined) updateData.brand = updates.brand;
+    if (updates.taxable !== undefined) updateData.taxable = updates.taxable;
+    if (updates.attributes !== undefined) updateData.attributes = updates.attributes;
+    if (updates.mediaMain !== undefined) updateData.media_main = updates.mediaMain;
+    if (updates.archived !== undefined) updateData.archived = updates.archived;
+    if (updates.wholesale !== undefined) updateData.wholesale = updates.wholesale;
+    if (updates.retail !== undefined) updateData.retail = updates.retail;
+    if (updates.club !== undefined) updateData.club = updates.club;
+    if (updates.costBefore !== undefined) updateData.cost_before = updates.costBefore;
+    if (updates.costAfter !== undefined) updateData.cost_after = updates.costAfter;
+    if (updates.variants !== undefined) updateData.variants = updates.variants;
+
+    const { data, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating product:', error);
+      throw new Error('Failed to update product');
+    }
+
+    return {
+      id: data.id,
+      article: data.article,
+      title: data.title,
+      category: data.category,
+      brand: data.brand,
+      taxable: data.taxable,
+      attributes: data.attributes || [],
+      mediaMain: data.media_main,
+      archived: data.archived,
+      wholesale: data.wholesale,
+      retail: data.retail,
+      club: data.club,
+      costBefore: data.cost_before,
+      costAfter: data.cost_after,
+      variants: data.variants || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    };
+  } catch (error) {
+    console.error('Error in updateProduct:', error);
+    throw error;
   }
-  saveProducts(filteredProducts);
-  return true;
 };
 
-export const getProductById = (id: string): Product | null => {
-  const products = getAllProducts();
-  return products.find((p: Product) => p.id === id) || null;
+export const deleteProduct = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting product:', error);
+      throw new Error('Failed to delete product');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteProduct:', error);
+    throw error;
+  }
+};
+
+export const getProductById = async (id: string): Promise<any | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      console.error('Error fetching product:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      article: data.article,
+      title: data.title,
+      category: data.category,
+      brand: data.brand,
+      taxable: data.taxable,
+      attributes: data.attributes || [],
+      mediaMain: data.media_main,
+      archived: data.archived,
+      wholesale: data.wholesale,
+      retail: data.retail,
+      club: data.club,
+      costBefore: data.cost_before,
+      costAfter: data.cost_after,
+      variants: data.variants || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
+    };
+  } catch (error) {
+    console.error('Error in getProductById:', error);
+    return null;
+  }
 };
 
 // Customers functions
-export const getAllCustomers = (): Customer[] => {
-  return initializeCustomers();
-};
-
-export const saveCustomers = (customers: Customer[]): void => {
+export const getAllCustomers = async (): Promise<Customer[]> => {
   try {
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify(customers, null, 2));
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching customers:', error);
+      return [];
+    }
+
+    return (data || []).map(customer => ({
+      id: customer.id,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      company: customer.company,
+      address: customer.address,
+      type: customer.type,
+      totalOrders: customer.total_orders,
+      totalSpent: customer.total_spent,
+      createdAt: new Date(customer.created_at)
+    }));
   } catch (error) {
-    console.error('Error saving customers:', error);
-    throw new Error('Failed to save customers');
+    console.error('Error in getAllCustomers:', error);
+    return [];
   }
 };
 
-export const addCustomer = (customer: Customer): Customer => {
-  const customers = getAllCustomers();
-  const newCustomer = {
-    ...customer,
-    id: customer.id || `cust_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  customers.push(newCustomer);
-  saveCustomers(customers);
-  return newCustomer;
-};
-
-export const updateCustomer = (id: string, updatedCustomer: Partial<Customer>): Customer => {
-  const customers = getAllCustomers();
-  const index = customers.findIndex((c: Customer) => c.id === id);
-  if (index !== -1) {
-    customers[index] = {
-      ...customers[index],
-      ...updatedCustomer,
-      id: customers[index].id // Preserve original ID
+export const addCustomer = async (customer: any): Promise<any> => {
+  try {
+    const customerData = {
+      name: customer.name,
+      email: customer.email || null,
+      phone: customer.phone,
+      company: customer.company || null,
+      address: customer.address,
+      type: customer.type,
+      total_orders: customer.totalOrders || 0,
+      total_spent: customer.totalSpent || 0
     };
-    saveCustomers(customers);
-    return customers[index];
+
+    const { data, error } = await supabase
+      .from('customers')
+      .insert(customerData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding customer:', error);
+      throw new Error('Failed to add customer');
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      company: data.company,
+      address: data.address,
+      type: data.type,
+      totalOrders: data.total_orders,
+      totalSpent: data.total_spent,
+      createdAt: new Date(data.created_at)
+    };
+  } catch (error) {
+    console.error('Error in addCustomer:', error);
+    throw error;
   }
-  throw new Error('Customer not found');
 };
 
-export const deleteCustomer = (id: string): boolean => {
-  const customers = getAllCustomers();
-  const initialLength = customers.length;
-  const filteredCustomers = customers.filter((c: Customer) => c.id !== id);
-  if (filteredCustomers.length === initialLength) {
-    throw new Error('Customer not found');
+export const updateCustomer = async (id: string, updates: any): Promise<any> => {
+  try {
+    const updateData: any = {};
+    
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.phone !== undefined) updateData.phone = updates.phone;
+    if (updates.company !== undefined) updateData.company = updates.company;
+    if (updates.address !== undefined) updateData.address = updates.address;
+    if (updates.type !== undefined) updateData.type = updates.type;
+    if (updates.totalOrders !== undefined) updateData.total_orders = updates.totalOrders;
+    if (updates.totalSpent !== undefined) updateData.total_spent = updates.totalSpent;
+
+    const { data, error } = await supabase
+      .from('customers')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating customer:', error);
+      throw new Error('Failed to update customer');
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      company: data.company,
+      address: data.address,
+      type: data.type,
+      totalOrders: data.total_orders,
+      totalSpent: data.total_spent,
+      createdAt: new Date(data.created_at)
+    };
+  } catch (error) {
+    console.error('Error in updateCustomer:', error);
+    throw error;
   }
-  saveCustomers(filteredCustomers);
-  return true;
 };
 
-export const getCustomerById = (id: string): Customer | null => {
-  const customers = getAllCustomers();
-  return customers.find((c: Customer) => c.id === id) || null;
+export const deleteCustomer = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting customer:', error);
+      throw new Error('Failed to delete customer');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteCustomer:', error);
+    throw error;
+  }
+};
+
+export const getCustomerById = async (id: string): Promise<any | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      console.error('Error fetching customer:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      company: data.company,
+      address: data.address,
+      type: data.type,
+      totalOrders: data.total_orders,
+      totalSpent: data.total_spent,
+      createdAt: new Date(data.created_at)
+    };
+  } catch (error) {
+    console.error('Error in getCustomerById:', error);
+    return null;
+  }
 };
 
 // Invoices functions
-export const getAllInvoices = (): Invoice[] => {
-  return initializeInvoices();
-};
-
-export const saveInvoices = (invoices: Invoice[]): void => {
+export const getAllInvoices = async (): Promise<Invoice[]> => {
   try {
-    fs.writeFileSync(INVOICES_FILE, JSON.stringify(invoices, null, 2));
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching invoices:', error);
+      return [];
+    }
+
+    return (data || []).map(invoice => ({
+      id: invoice.id,
+      invoiceNumber: invoice.invoice_number,
+      customerId: invoice.customer_id,
+      customerName: invoice.customer_name,
+      date: invoice.date,
+      items: invoice.items || [],
+      subtotal: invoice.subtotal,
+      discount: invoice.discount,
+      tax: invoice.tax,
+      total: invoice.total,
+      status: invoice.status,
+      paymentStatus: invoice.payment_status,
+      dueDate: invoice.due_date ? new Date(invoice.due_date) : new Date(),
+      notes: invoice.notes,
+      createdAt: new Date(invoice.created_at),
+      paidAt: invoice.paid_at ? new Date(invoice.paid_at) : undefined
+    }));
   } catch (error) {
-    console.error('Error saving invoices:', error);
-    throw new Error('Failed to save invoices');
+    console.error('Error in getAllInvoices:', error);
+    return [];
   }
 };
 
-export const addInvoice = (invoice: Invoice): Invoice => {
-  const invoices = getAllInvoices();
-  const newInvoice = {
-    ...invoice,
-    id: invoice.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  invoices.push(newInvoice);
-  saveInvoices(invoices);
-  return newInvoice;
+export const addInvoice = async (invoice: any): Promise<any> => {
+  try {
+    const invoiceData = {
+      invoice_number: invoice.invoiceNumber,
+      customer_id: invoice.customerId,
+      customer_name: invoice.customerName || null,
+      date: invoice.date || null,
+      items: invoice.items || [],
+      subtotal: invoice.subtotal,
+      discount: invoice.discount || 0,
+      tax: invoice.tax,
+      total: invoice.total,
+      status: invoice.status || 'draft',
+      payment_status: invoice.paymentStatus || 'unpaid',
+      due_date: invoice.dueDate ? invoice.dueDate.toISOString().split('T')[0] : null,
+      notes: invoice.notes || null,
+      paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
+    };
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert(invoiceData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding invoice:', error);
+      throw new Error('Failed to add invoice');
+    }
+
+    return {
+      id: data.id,
+      invoiceNumber: data.invoice_number,
+      customerId: data.customer_id,
+      customerName: data.customer_name,
+      date: data.date,
+      items: data.items || [],
+      subtotal: data.subtotal,
+      discount: data.discount,
+      tax: data.tax,
+      total: data.total,
+      status: data.status,
+      paymentStatus: data.payment_status,
+      dueDate: data.due_date ? new Date(data.due_date) : new Date(),
+      notes: data.notes,
+      createdAt: new Date(data.created_at),
+      paidAt: data.paid_at ? new Date(data.paid_at) : undefined
+    };
+  } catch (error) {
+    console.error('Error in addInvoice:', error);
+    throw error;
+  }
 };
 
-export const createInvoice = (invoice: Invoice): Invoice => {
+export const createInvoice = async (invoice: any): Promise<any> => {
   return addInvoice(invoice);
 };
 
-export const updateInvoice = (id: string, updatedInvoice: Partial<Invoice>): Invoice => {
-  const invoices = getAllInvoices();
-  const index = invoices.findIndex((i: Invoice) => i.id === id);
-  if (index !== -1) {
-    invoices[index] = {
-      ...invoices[index],
-      ...updatedInvoice,
-      id: invoices[index].id // Preserve original ID
+export const updateInvoice = async (id: string, updates: any): Promise<any> => {
+  try {
+    const updateData: any = {};
+    
+    if (updates.invoiceNumber !== undefined) updateData.invoice_number = updates.invoiceNumber;
+    if (updates.customerId !== undefined) updateData.customer_id = updates.customerId;
+    if (updates.customerName !== undefined) updateData.customer_name = updates.customerName;
+    if (updates.date !== undefined) updateData.date = updates.date;
+    if (updates.items !== undefined) updateData.items = updates.items;
+    if (updates.subtotal !== undefined) updateData.subtotal = updates.subtotal;
+    if (updates.discount !== undefined) updateData.discount = updates.discount;
+    if (updates.tax !== undefined) updateData.tax = updates.tax;
+    if (updates.total !== undefined) updateData.total = updates.total;
+    if (updates.status !== undefined) updateData.status = updates.status;
+    if (updates.paymentStatus !== undefined) updateData.payment_status = updates.paymentStatus;
+    if (updates.dueDate !== undefined) updateData.due_date = updates.dueDate ? updates.dueDate.toISOString().split('T')[0] : null;
+    if (updates.notes !== undefined) updateData.notes = updates.notes;
+    if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt ? updates.paidAt.toISOString() : null;
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating invoice:', error);
+      throw new Error('Failed to update invoice');
+    }
+
+    return {
+      id: data.id,
+      invoiceNumber: data.invoice_number,
+      customerId: data.customer_id,
+      customerName: data.customer_name,
+      date: data.date,
+      items: data.items || [],
+      subtotal: data.subtotal,
+      discount: data.discount,
+      tax: data.tax,
+      total: data.total,
+      status: data.status,
+      paymentStatus: data.payment_status,
+      dueDate: data.due_date ? new Date(data.due_date) : new Date(),
+      notes: data.notes,
+      createdAt: new Date(data.created_at),
+      paidAt: data.paid_at ? new Date(data.paid_at) : undefined
     };
-    saveInvoices(invoices);
-    return invoices[index];
+  } catch (error) {
+    console.error('Error in updateInvoice:', error);
+    throw error;
   }
-  throw new Error('Invoice not found');
 };
 
-export const deleteInvoice = (id: string): boolean => {
-  const invoices = getAllInvoices();
-  const initialLength = invoices.length;
-  const filteredInvoices = invoices.filter((i: Invoice) => i.id !== id);
-  if (filteredInvoices.length === initialLength) {
-    throw new Error('Invoice not found');
+export const deleteInvoice = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting invoice:', error);
+      throw new Error('Failed to delete invoice');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteInvoice:', error);
+    throw error;
   }
-  saveInvoices(filteredInvoices);
-  return true;
 };
 
-export const getInvoiceById = (id: string): Invoice | null => {
-  const invoices = getAllInvoices();
-  return invoices.find((i: Invoice) => i.id === id) || null;
+export const getInvoiceById = async (id: string): Promise<any | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      console.error('Error fetching invoice:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      invoiceNumber: data.invoice_number,
+      customerId: data.customer_id,
+      customerName: data.customer_name,
+      date: data.date,
+      items: data.items || [],
+      subtotal: data.subtotal,
+      discount: data.discount,
+      tax: data.tax,
+      total: data.total,
+      status: data.status,
+      paymentStatus: data.payment_status,
+      dueDate: data.due_date ? new Date(data.due_date) : new Date(),
+      notes: data.notes,
+      createdAt: new Date(data.created_at),
+      paidAt: data.paid_at ? new Date(data.paid_at) : undefined
+    };
+  } catch (error) {
+    console.error('Error in getInvoiceById:', error);
+    return null;
+  }
 };
 
 // Database management functions
-export const clearAllData = (): boolean => {
+export const clearAllData = async (): Promise<boolean> => {
   try {
-    // Create backup before clearing
-    createBackup();
-    
-    // Clear all data files
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify([], null, 2));
-    fs.writeFileSync(CUSTOMERS_FILE, JSON.stringify([], null, 2));
-    fs.writeFileSync(INVOICES_FILE, JSON.stringify([], null, 2));
-    
+    await supabase.from('invoices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('customers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     return true;
   } catch (error) {
     console.error('Error clearing data:', error);
@@ -298,22 +597,19 @@ export const clearAllData = (): boolean => {
   }
 };
 
-export const getDatabaseStats = () => {
+export const getDatabaseStats = async () => {
   try {
-    const products = getAllProducts();
-    const customers = getAllCustomers();
-    const invoices = getAllInvoices();
+    const [products, customers, invoices] = await Promise.all([
+      getAllProducts(),
+      getAllCustomers(),
+      getAllInvoices()
+    ]);
     
     return {
       products: products.length,
       customers: customers.length,
       invoices: invoices.length,
-      lastUpdated: new Date().toISOString(),
-      dataSize: {
-        products: JSON.stringify(products).length,
-        customers: JSON.stringify(customers).length,
-        invoices: JSON.stringify(invoices).length
-      }
+      lastUpdated: new Date().toISOString()
     };
   } catch (error) {
     console.error('Error getting database stats:', error);
