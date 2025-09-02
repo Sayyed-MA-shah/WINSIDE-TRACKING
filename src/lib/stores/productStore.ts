@@ -1,39 +1,54 @@
 import React from 'react';
 import { Product, Brand, BrandStats } from '@/lib/types';
 
-// Database-backed store
+// LocalStorage-backed store for immediate persistence
 class ProductStore {
   private products: Product[] = [];
   private listeners: Array<() => void> = [];
   private isInitialized: boolean = false;
+  private readonly STORAGE_KEY = 'winside_products';
 
   constructor() {
-    // Products will be loaded from database
+    // Load from localStorage immediately
+    this.loadFromLocalStorage();
+  }
+
+  private loadFromLocalStorage(): void {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(this.STORAGE_KEY);
+        if (stored) {
+          this.products = JSON.parse(stored);
+          console.log('Loaded products from localStorage:', this.products.length);
+        } else {
+          // Add sample products if none exist
+          this.products = this.getSampleProducts();
+          this.saveToLocalStorage();
+          console.log('Added sample products to localStorage');
+        }
+      } catch (error) {
+        console.error('Error loading from localStorage:', error);
+        this.products = this.getSampleProducts();
+        this.saveToLocalStorage();
+      }
+    }
+    this.isInitialized = true;
+  }
+
+  private saveToLocalStorage(): void {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.products));
+        console.log('Saved products to localStorage:', this.products.length);
+      } catch (error) {
+        console.error('Error saving to localStorage:', error);
+      }
+    }
   }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
-    try {
-      const response = await fetch('/api/products');
-      if (response.ok) {
-        this.products = await response.json();
-      } else {
-        console.error('Failed to load products from database');
-        this.products = [];
-      }
-    } catch (error) {
-      console.error('Error loading products:', error);
-      this.products = [];
-    }
-    
-    // If no products loaded from database, add sample products locally
-    if (this.products.length === 0) {
-      console.log('No products in database, adding sample products locally...');
-      this.products = this.getSampleProducts();
-    }
-    
-    this.isInitialized = true;
+    this.loadFromLocalStorage();
     this.notifyListeners();
   }
 
@@ -193,101 +208,120 @@ class ProductStore {
 
   async addProduct(product: Product): Promise<void> {
     try {
-      console.log('Attempting to add product:', product);
-      const response = await fetch('/api/products', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(product),
-      });
-
-      console.log('Add product response status:', response.status);
-
-      if (response.ok) {
-        const savedProduct = await response.json();
-        console.log('Product added successfully:', savedProduct);
-        this.products.push(savedProduct);
-        this.notifyListeners();
-      } else {
-        const errorText = await response.text();
-        console.error('Add product failed:', response.status, errorText);
-        throw new Error(`Failed to save product to database: ${response.status} - ${errorText}`);
+      console.log('Adding product to localStorage:', product.title);
+      
+      // Add to local products array
+      this.products.push(product);
+      
+      // Save to localStorage immediately
+      this.saveToLocalStorage();
+      
+      // Notify listeners
+      this.notifyListeners();
+      
+      console.log('Product added successfully to localStorage');
+      
+      // Try to sync with database in background (don't throw on failure)
+      try {
+        const response = await fetch('/api/products', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(product),
+        });
+        
+        if (response.ok) {
+          console.log('Product also synced to database');
+        } else {
+          console.log('Database sync failed, but product saved locally');
+        }
+      } catch (dbError) {
+        console.log('Database sync failed, but product saved locally:', dbError);
       }
+      
     } catch (error) {
       console.error('Error adding product:', error);
-      // Add to local storage as fallback
-      console.log('Adding product locally as fallback');
-      this.products.push(product);
-      this.notifyListeners();
-      throw new Error(`Database save failed, added locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
     }
   }
 
   async updateProduct(id: string, updatedProduct: Product): Promise<void> {
     try {
-      console.log('Attempting to update product:', id, updatedProduct);
-      const response = await fetch(`/api/products/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedProduct),
-      });
-
-      console.log('Update product response status:', response.status);
-
-      if (response.ok) {
-        const savedProduct = await response.json();
-        console.log('Product updated successfully:', savedProduct);
-        const index = this.products.findIndex(p => p.id === id);
-        if (index !== -1) {
-          this.products[index] = savedProduct;
-          this.notifyListeners();
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('Update product failed:', response.status, errorText);
-        throw new Error(`Failed to update product in database: ${response.status} - ${errorText}`);
-      }
-    } catch (error) {
-      console.error('Error updating product:', error);
-      // Update locally as fallback
-      console.log('Updating product locally as fallback');
+      console.log('Updating product in localStorage:', id);
+      
+      // Update in local products array
       const index = this.products.findIndex(p => p.id === id);
       if (index !== -1) {
         this.products[index] = updatedProduct;
+        
+        // Save to localStorage immediately
+        this.saveToLocalStorage();
+        
+        // Notify listeners
         this.notifyListeners();
+        
+        console.log('Product updated successfully in localStorage');
       }
-      throw new Error(`Database update failed, updated locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Try to sync with database in background (don't throw on failure)
+      try {
+        const response = await fetch(`/api/products/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatedProduct),
+        });
+        
+        if (response.ok) {
+          console.log('Product also synced to database');
+        } else {
+          console.log('Database sync failed, but product updated locally');
+        }
+      } catch (dbError) {
+        console.log('Database sync failed, but product updated locally:', dbError);
+      }
+      
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error;
     }
   }
 
   async deleteProduct(id: string): Promise<void> {
     try {
-      console.log('Attempting to delete product:', id);
-      const response = await fetch(`/api/products/${id}`, {
-        method: 'DELETE',
-      });
-
-      console.log('Delete product response status:', response.status);
-
-      if (response.ok) {
-        console.log('Product deleted successfully from database');
-        this.products = this.products.filter(p => p.id !== id);
-        this.notifyListeners();
-      } else {
-        const errorText = await response.text();
-        console.error('Delete product failed:', response.status, errorText);
-        throw new Error(`Failed to delete product from database: ${response.status} - ${errorText}`);
+      console.log('Deleting product from localStorage:', id);
+      
+      // Delete from local products array
+      this.products = this.products.filter(p => p.id !== id);
+      
+      // Save to localStorage immediately
+      this.saveToLocalStorage();
+      
+      // Notify listeners
+      this.notifyListeners();
+      
+      console.log('Product deleted successfully from localStorage');
+      
+      // Try to sync with database in background (don't throw on failure)
+      try {
+        const response = await fetch(`/api/products/${id}`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          console.log('Product also deleted from database');
+        } else {
+          console.log('Database sync failed, but product deleted locally');
+        }
+      } catch (dbError) {
+        console.log('Database sync failed, but product deleted locally:', dbError);
       }
+      
     } catch (error) {
       console.error('Error deleting product:', error);
-      // Delete locally as fallback
-      console.log('Deleting product locally as fallback');
-      this.products = this.products.filter(p => p.id !== id);
-      this.notifyListeners();
-      throw new Error(`Database delete failed, deleted locally: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
     }
   }
 
