@@ -70,6 +70,42 @@ INSERT INTO customers (id, name, email, phone, company, address, type, total_ord
 ('CUST-001', 'John Doe', 'john.doe@example.com', '+1-234-567-8900', 'Doe Enterprises', '123 Main St, City, State 12345', 'retail', 5, 750.00)
 ON CONFLICT (id) DO NOTHING;
 
+-- Create/Fix invoices table to handle VARCHAR customer IDs
+DROP TABLE IF EXISTS invoices CASCADE;
+CREATE TABLE invoices (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    customer_id TEXT NOT NULL, -- Use TEXT to match our VARCHAR customer IDs
+    customer_name VARCHAR(255),
+    date DATE,
+    items JSONB NOT NULL DEFAULT '[]',
+    subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+    discount DECIMAL(10,2) DEFAULT 0,
+    tax DECIMAL(10,2) NOT NULL DEFAULT 0,
+    total DECIMAL(10,2) NOT NULL,
+    status VARCHAR(20) CHECK (status IN ('draft', 'sent', 'pending', 'paid', 'overdue', 'cancelled')) DEFAULT 'draft',
+    payment_status VARCHAR(20) CHECK (payment_status IN ('paid', 'unpaid', 'partial')) DEFAULT 'unpaid',
+    due_date DATE,
+    notes TEXT,
+    paid_amount DECIMAL(10,2) DEFAULT 0,
+    paid_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);
+
+-- Enable RLS for invoices
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for invoices
+DROP POLICY IF EXISTS "Allow all invoice operations" ON invoices;
+CREATE POLICY "Allow all invoice operations" ON invoices
+FOR ALL USING (true);
+
 -- Insert some sample products for testing
 INSERT INTO products (article, title, category, brand, taxable, attributes, wholesale, retail, club, cost_before, cost_after, variants) VALUES
 ('BGC-1011', 'Boxing Gloves Classic', 'Boxing Gloves', 'greenhil', true, '["Size", "Color"]', 55.00, 79.99, 67.99, 42.00, 48.00, '[
