@@ -417,6 +417,10 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
 
 export const addInvoice = async (invoice: any): Promise<any> => {
   try {
+    // Check Supabase configuration
+    console.log('DB: Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('DB: Supabase Anon Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    
     // The invoice table expects customer_id as UUID, but we might be sending VARCHAR
     // Let's first try to get the customer to ensure the ID is valid
     const { data: customerData, error: customerError } = await supabase

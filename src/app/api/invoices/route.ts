@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(invoice, { status: 201 });
   } catch (error) {
     console.error('API: Error creating invoice:', error);
-    return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
+    console.error('API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('API: Error message:', error instanceof Error ? error.message : String(error));
+    
+    return NextResponse.json({ 
+      error: 'Failed to create invoice',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }
