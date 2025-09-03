@@ -115,6 +115,7 @@ export interface Invoice {
   total: number;
   status: 'draft' | 'sent' | 'pending' | 'paid' | 'overdue' | 'cancelled';
   paymentStatus?: 'paid' | 'unpaid' | 'partial'; // Added payment status field
+  paidAmount?: number; // Added paid amount field
   dueDate: Date;
   notes?: string; // Added notes field
   createdAt: Date;

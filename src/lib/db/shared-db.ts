@@ -403,6 +403,7 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
       total: invoice.total,
       status: invoice.status,
       paymentStatus: invoice.payment_status,
+      paidAmount: invoice.paid_amount || 0,
       dueDate: invoice.due_date ? new Date(invoice.due_date) : new Date(),
       notes: invoice.notes,
       // Ensure dates are properly converted to Date objects for display
@@ -463,6 +464,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       total: invoice.total,
       status: invoice.status || 'draft',
       payment_status: invoice.paymentStatus === 'pending' ? 'unpaid' : (invoice.paymentStatus || 'unpaid'),
+      paid_amount: invoice.paidAmount || 0,
       due_date: invoice.dueDate ? 
         (typeof invoice.dueDate === 'string' ? 
           invoice.dueDate.split('T')[0] : 
@@ -508,6 +510,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       total: data.total,
       status: data.status,
       paymentStatus: data.payment_status,
+      paidAmount: data.paid_amount || 0,
       dueDate: data.due_date ? new Date(data.due_date) : new Date(),
       notes: data.notes,
       createdAt: new Date(data.created_at),
@@ -539,6 +542,7 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     if (updates.total !== undefined) updateData.total = updates.total;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.paymentStatus !== undefined) updateData.payment_status = updates.paymentStatus === 'pending' ? 'unpaid' : updates.paymentStatus;
+    if (updates.paidAmount !== undefined) updateData.paid_amount = updates.paidAmount;
     if (updates.dueDate !== undefined) updateData.due_date = updates.dueDate ? updates.dueDate.toISOString().split('T')[0] : null;
     if (updates.notes !== undefined) updateData.notes = updates.notes;
     if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt ? updates.paidAt.toISOString() : null;
@@ -568,6 +572,7 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
       total: data.total,
       status: data.status,
       paymentStatus: data.payment_status,
+      paidAmount: data.paid_amount || 0,
       dueDate: data.due_date ? new Date(data.due_date) : new Date(),
       notes: data.notes,
       createdAt: new Date(data.created_at),

@@ -468,6 +468,8 @@ export default function InvoicesPage() {
                       <TableHead className="dark:text-gray-300">Invoice #</TableHead>
                       <TableHead className="dark:text-gray-300">Customer</TableHead>
                       <TableHead className="dark:text-gray-300">Amount</TableHead>
+                      <TableHead className="dark:text-gray-300">Paid</TableHead>
+                      <TableHead className="dark:text-gray-300">Balance</TableHead>
                       <TableHead className="dark:text-gray-300">Status</TableHead>
                       <TableHead className="dark:text-gray-300">Date</TableHead>
                       <TableHead className="dark:text-gray-300">Due Date</TableHead>
@@ -477,7 +479,7 @@ export default function InvoicesPage() {
                   <TableBody>
                     {filteredInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <TableCell colSpan={9} className="text-center py-8 text-gray-500 dark:text-gray-400">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -499,6 +501,12 @@ export default function InvoicesPage() {
                           </TableCell>
                           <TableCell className="dark:text-gray-300">
                             £{invoice.total.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="dark:text-gray-300">
+                            £{(invoice.paidAmount || 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="dark:text-gray-300">
+                            £{(invoice.total - (invoice.paidAmount || 0)).toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Badge variant={getStatusVariant(invoice.status)} className={getStatusBadge(invoice.status)}>

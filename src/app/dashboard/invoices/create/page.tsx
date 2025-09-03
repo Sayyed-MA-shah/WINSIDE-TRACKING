@@ -187,6 +187,7 @@ export default function CreateInvoicePage() {
         total: grandTotal,
         status,
         paymentStatus: paymentStatus, // Use the separate paymentStatus variable
+        paidAmount: paidAmount, // Add the paid amount
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
         notes: `Invoice created. Paid: $${paidAmount.toFixed(2)}, Balance: $${balanceDue.toFixed(2)}`
       };
