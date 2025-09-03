@@ -83,7 +83,7 @@ export default function CustomersPage() {
     customer.phone.includes(searchTerm) ||
     (customer.company && customer.company.toLowerCase().includes(searchTerm.toLowerCase())) ||
     customer.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.type.toLowerCase().includes(searchTerm.toLowerCase())
+    (customer.type || 'retail').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalCustomers = customers.length;
@@ -106,13 +106,13 @@ export default function CustomersPage() {
 
   const handleEditCustomer = (customer: Customer) => {
     setEditingCustomer(customer);
-    setSelectedCustomerType(customer.type);
+    setSelectedCustomerType(customer.type || 'retail');
     setFormData({
       name: customer.name,
       phone: customer.phone,
       company: customer.company || '',
       address: customer.address,
-      type: customer.type
+      type: customer.type || 'retail'
     });
     setIsDialogOpen(true);
   };
@@ -272,7 +272,7 @@ export default function CustomersPage() {
                 <div class="info-row">
                   <span class="label">Type:</span>
                   <span class="value">
-                    <span class="badge badge-${customer.type}">${customer.type.charAt(0).toUpperCase() + customer.type.slice(1)}</span>
+                    <span class="badge badge-${customer.type || 'retail'}">${(customer.type || 'retail').charAt(0).toUpperCase() + (customer.type || 'retail').slice(1)}</span>
                   </span>
                 </div>
                 <div class="info-row">
@@ -546,8 +546,8 @@ export default function CustomersPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={getCustomerTypeBadge(customer.type)}>
-                              {customer.type.charAt(0).toUpperCase() + customer.type.slice(1)}
+                            <Badge className={getCustomerTypeBadge(customer.type || 'retail')}>
+                              {(customer.type || 'retail').charAt(0).toUpperCase() + (customer.type || 'retail').slice(1)}
                             </Badge>
                           </TableCell>
                           <TableCell className="dark:text-gray-300">{customer.totalOrders || 0}</TableCell>

@@ -1,5 +1,96 @@
 // Supabase database implementation for WINSIDE Business Dashboard
 import { supabase } from '@/lib/supabase';
+
+// Categories functions
+export const getAllCategories = async (): Promise<any[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getAllCategories:', error);
+    return [];
+  }
+};
+
+export const addCategory = async (category: any): Promise<any> => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({
+        name: category.name,
+        description: category.description || null,
+        color: category.color || '#3B82F6'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding category:', error);
+      throw new Error('Failed to add category');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in addCategory:', error);
+    throw error;
+  }
+};
+
+export const updateCategory = async (id: string, updates: any): Promise<any> => {
+  try {
+    const updateData: any = {};
+    
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.color !== undefined) updateData.color = updates.color;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating category:', error);
+      throw new Error('Failed to update category');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in updateCategory:', error);
+    throw error;
+  }
+};
+
+export const deleteCategory = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting category:', error);
+      throw new Error('Failed to delete category');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteCategory:', error);
+    throw error;
+  }
+};
 import { Product, Customer, Invoice } from '@/lib/types';
 
 // Products functions

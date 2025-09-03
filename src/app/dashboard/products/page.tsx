@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Package, DollarSign, Archive, Eye, Upload } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import ProductVariantModal from '@/components/dashboard/ProductVariantModal';
@@ -17,9 +17,30 @@ export default function ProductsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const categories = Array.from(new Set(products.map(p => p.category)));
+  // Get unique categories from products (for backward compatibility) and merge with available categories
+  const productCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+  const allCategoryNames = [...availableCategories.map(c => c.name), ...productCategories];
+  const categories = Array.from(new Set(allCategoryNames));
+
+  // Fetch available categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableCategories(data);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

@@ -11,6 +11,12 @@ import {
   calculateVariantSummary 
 } from '@/lib/utils';
 
+interface Category {
+  id: string;
+  name: string;
+  color?: string;
+}
+
 interface ProductVariantModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -90,6 +96,24 @@ export default function ProductVariantModal({
   const [errors, setErrors] = useState<string[]>([]);
   const [newAttributeName, setNewAttributeName] = useState('');
   const [attributeValueInputs, setAttributeValueInputs] = useState<Record<string, string>>({});
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+
+  // Fetch available categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableCategories(data);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Reset form when modal opens/closes or editing product changes
   useEffect(() => {
@@ -414,6 +438,7 @@ export default function ProductVariantModal({
               formData={formData} 
               setFormData={setFormData} 
               onSeedDemo={handleSeedDemo}
+              availableCategories={availableCategories}
             />
           )}
           
@@ -487,11 +512,13 @@ export default function ProductVariantModal({
 function BasicsStep({ 
   formData, 
   setFormData, 
-  onSeedDemo 
+  onSeedDemo,
+  availableCategories
 }: { 
   formData: ProductFormData; 
   setFormData: React.Dispatch<React.SetStateAction<ProductFormData>>;
   onSeedDemo: () => void;
+  availableCategories: Category[];
 }) {
   return (
     <div className="space-y-6">
@@ -536,13 +563,18 @@ function BasicsStep({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Category*
           </label>
-          <input
-            type="text"
+          <select
             value={formData.category}
             onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="Gloves"
-          />
+          >
+            <option value="">Select a category</option>
+            {availableCategories.map((category: Category) => (
+              <option key={category.id} value={category.name}>
+                {category.name}
+              </option>
+            ))}
+          </select>
         </div>
         
         <div>
