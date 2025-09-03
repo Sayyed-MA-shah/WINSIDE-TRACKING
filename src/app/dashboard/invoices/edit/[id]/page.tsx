@@ -27,135 +27,6 @@ import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react';
 import { Invoice, Customer, Product } from '@/lib/types';
 import { SuppressHydrationWarning } from '@/components/SuppressHydrationWarning';
 
-// Mock data (should match the data from the main invoices page)
-const mockCustomers: Customer[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    phone: '+1 (555) 123-4567',
-    company: 'Acme Corporation',
-    address: '123 Main St, New York, NY 10001',
-    type: 'wholesale',
-    createdAt: new Date('2024-01-15'),
-    totalOrders: 12,
-    totalSpent: 2450.75
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    phone: '+1 (555) 987-6543',
-    company: undefined,
-    address: '456 Oak Ave, Los Angeles, CA 90210',
-    type: 'retail',
-    createdAt: new Date('2024-01-10'),
-    totalOrders: 8,
-    totalSpent: 1890.50
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    phone: '+1 (555) 456-7890',
-    company: 'Club Elite',
-    address: '789 Pine St, Chicago, IL 60601',
-    type: 'club',
-    createdAt: new Date('2024-01-05'),
-    totalOrders: 15,
-    totalSpent: 3250.00
-  },
-];
-
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    article: 'BGC-1011',
-    title: 'Boxing Gloves Classic',
-    category: 'Gloves',
-    brand: 'greenhil',
-    taxable: true,
-    attributes: ['Size', 'Color'],
-    mediaMain: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400',
-    archived: false,
-    wholesale: 55,
-    retail: 79.99,
-    club: 67.99,
-    costBefore: 42,
-    costAfter: 48,
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
-    variants: []
-  },
-  {
-    id: '2',
-    article: 'TRK-2022',
-    title: 'Training Shorts Premium',
-    category: 'Apparel',
-    brand: 'harican',
-    taxable: true,
-    attributes: ['Size', 'Color'],
-    mediaMain: 'https://images.unsplash.com/photo-1506629905962-843c9e23b40c?w=400',
-    archived: false,
-    wholesale: 25,
-    retail: 39.99,
-    club: 32.99,
-    costBefore: 18,
-    costAfter: 22,
-    createdAt: new Date('2024-01-10'),
-    updatedAt: new Date('2024-01-12'),
-    variants: []
-  }
-];
-
-const mockInvoices: Invoice[] = [
-  {
-    id: '1',
-    invoiceNumber: 'INV-001',
-    customerId: '1',
-    customer: mockCustomers[0],
-    items: [
-      { id: '1', productId: '1', quantity: 2, unitPrice: 55.00, total: 110.00 },
-      { id: '2', productId: '2', quantity: 1, unitPrice: 25.00, total: 25.00 },
-    ],
-    subtotal: 135.00,
-    tax: 0,
-    total: 135.00,
-    status: 'paid',
-    dueDate: new Date('2024-02-15'),
-    createdAt: new Date('2024-01-15'),
-    paidAt: new Date('2024-01-20'),
-  },
-  {
-    id: '2',
-    invoiceNumber: 'INV-002',
-    customerId: '2',
-    customer: mockCustomers[1],
-    items: [
-      { id: '3', productId: '1', quantity: 1, unitPrice: 79.99, total: 79.99 },
-    ],
-    subtotal: 79.99,
-    tax: 0,
-    total: 79.99,
-    status: 'pending',
-    dueDate: new Date('2024-02-20'),
-    createdAt: new Date('2024-01-20'),
-  },
-  {
-    id: '3',
-    invoiceNumber: 'INV-003',
-    customerId: '3',
-    customer: mockCustomers[2],
-    items: [
-      { id: '4', productId: '1', quantity: 1, unitPrice: 67.99, total: 67.99 },
-      { id: '5', productId: '2', quantity: 2, unitPrice: 32.99, total: 65.98 },
-    ],
-    subtotal: 133.97,
-    tax: 0,
-    total: 133.97,
-    status: 'overdue',
-    dueDate: new Date('2024-01-10'),
-    createdAt: new Date('2024-01-05'),
-  },
-];
-
 export default function EditInvoicePage() {
   const router = useRouter();
   const params = useParams();
@@ -447,7 +318,7 @@ export default function EditInvoicePage() {
               </TableHeader>
               <TableBody>
                 {invoice.items.map((item) => {
-                  const product = mockProducts.find(p => p.id === item.productId);
+                  const product = products.find(p => p.id === item.productId);
                   return (
                     <TableRow key={item.id}>
                       <TableCell>{product?.title || 'Product Not Found'}</TableCell>
