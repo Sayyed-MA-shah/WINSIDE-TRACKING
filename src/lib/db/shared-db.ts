@@ -421,6 +421,20 @@ export const addInvoice = async (invoice: any): Promise<any> => {
     console.log('DB: Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
     console.log('DB: Supabase Anon Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     
+    // Check if the invoices table exists
+    console.log('DB: Checking if invoices table exists...');
+    const { data: tableCheck, error: tableError } = await supabase
+      .from('invoices')
+      .select('count', { count: 'exact', head: true });
+    
+    if (tableError) {
+      console.error('DB: Invoices table check failed:', tableError);
+      console.error('DB: Table error details:', JSON.stringify(tableError, null, 2));
+      throw new Error(`Invoices table not accessible: ${tableError.message}`);
+    }
+    
+    console.log('DB: Invoices table exists and is accessible');
+    
     // The invoice table expects customer_id as UUID, but we might be sending VARCHAR
     // Let's first try to get the customer to ensure the ID is valid
     const { data: customerData, error: customerError } = await supabase
