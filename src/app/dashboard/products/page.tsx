@@ -7,6 +7,7 @@ import ProductVariantModal from '@/components/dashboard/ProductVariantModal';
 import { Product, LegacyProduct } from '@/lib/types';
 import { useProducts } from '@/lib/stores/productStore';
 import { generateId } from '@/lib/utils/ssr-safe';
+import { getAllCategories } from '@/lib/categories';
 
 export default function ProductsPage() {
   const { products, isLoading, error, addProduct, updateProduct, deleteProduct } = useProducts();
@@ -19,7 +20,7 @@ export default function ProductsPage() {
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const categories = Array.from(new Set(products.map(p => p.category)));
+  const categories = getAllCategories(products.map(p => p.category));
 
   const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -197,6 +198,20 @@ export default function ProductsPage() {
               <Plus className="w-4 h-4 mr-2" />
               Add Product
             </button>
+          </div>
+        </div>
+
+        {/* Category Info Section */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex items-start space-x-2">
+            <Package className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100">Category Management</h3>
+              <p className="text-sm text-blue-700 dark:text-blue-200 mt-1">
+                Categories are automatically normalized. For example: "boxing gloves", "Boxing Gloves", and "BOXING GLOVES" will all become "Boxing Gloves". 
+                Predefined categories are prioritized for consistency.
+              </p>
+            </div>
           </div>
         </div>
 
