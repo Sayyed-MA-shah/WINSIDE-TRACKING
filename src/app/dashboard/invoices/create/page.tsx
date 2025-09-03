@@ -158,14 +158,14 @@ export default function CreateInvoicePage() {
 
     try {
       // Determine invoice status based on payment
-      let status: 'paid' | 'pending' | 'partial' = 'pending';
+      let status: 'paid' | 'pending' | 'sent' = 'pending';
       let paymentStatus: 'paid' | 'unpaid' | 'partial' = 'unpaid';
       
       if (paidAmount >= grandTotal) {
         status = 'paid';
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
-        status = 'partial';
+        status = 'pending'; // Status should be 'pending', not 'partial'
         paymentStatus = 'partial';
       }
 
