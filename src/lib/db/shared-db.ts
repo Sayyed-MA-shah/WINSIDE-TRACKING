@@ -334,7 +334,7 @@ export const getAllCustomers = async (): Promise<Customer[]> => {
 
 export const addCustomer = async (customer: any): Promise<any> => {
   try {
-    const customerData = {
+    const customerData: any = {
       name: customer.name,
       email: customer.email || null,
       phone: customer.phone,
@@ -344,6 +344,11 @@ export const addCustomer = async (customer: any): Promise<any> => {
       total_orders: customer.totalOrders || 0,
       total_spent: customer.totalSpent || 0
     };
+
+    // Add ID if provided
+    if (customer.id) {
+      customerData.id = customer.id;
+    }
 
     const { data, error } = await supabase
       .from('customers')

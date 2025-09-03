@@ -44,7 +44,7 @@ FOR ALL USING (true);
 -- Drop the table if it exists with wrong UUID type, then recreate
 DROP TABLE IF EXISTS customers CASCADE;
 CREATE TABLE customers (
-    id VARCHAR(50) PRIMARY KEY,
+    id VARCHAR(50) PRIMARY KEY DEFAULT ('CUST-' || substr(md5(random()::text), 1, 8)),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255),
     phone VARCHAR(50),

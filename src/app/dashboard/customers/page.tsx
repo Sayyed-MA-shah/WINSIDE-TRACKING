@@ -155,12 +155,17 @@ export default function CustomersPage() {
       } else {
         // Create new customer
         console.log('Creating new customer');
+        const newCustomerData = {
+          ...customerData,
+          id: `CUST-${generateId()}` // Generate customer ID
+        };
+        
         const response = await fetch('/api/customers', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(customerData),
+          body: JSON.stringify(newCustomerData),
         });
 
         console.log('Create response status:', response.status);
