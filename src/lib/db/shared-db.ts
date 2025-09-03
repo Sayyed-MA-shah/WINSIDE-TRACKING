@@ -405,6 +405,7 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
       paymentStatus: invoice.payment_status,
       dueDate: invoice.due_date ? new Date(invoice.due_date) : new Date(),
       notes: invoice.notes,
+      // Ensure dates are properly converted to Date objects for display
       createdAt: invoice.created_at ? new Date(invoice.created_at) : new Date(),
       paidAt: invoice.paid_at ? new Date(invoice.paid_at) : undefined
     }));
