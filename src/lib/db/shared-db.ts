@@ -1,6 +1,5 @@
 // Supabase database implementation for WINSIDE Business Dashboard
 import { supabase } from '@/lib/supabase';
-import { normalizeCategory } from '@/lib/categories';
 import { Product, Customer, Invoice } from '@/lib/types';
 
 // Products functions
@@ -47,7 +46,7 @@ export const addProduct = async (product: any): Promise<any> => {
     const productData = {
       article: product.article,
       title: product.title,
-      category: normalizeCategory(product.category),
+      category: product.category,
       brand: product.brand,
       taxable: product.taxable ?? true,
       attributes: product.attributes || [],
@@ -103,7 +102,7 @@ export const updateProduct = async (id: string, updates: any): Promise<any> => {
     
     if (updates.article !== undefined) updateData.article = updates.article;
     if (updates.title !== undefined) updateData.title = updates.title;
-    if (updates.category !== undefined) updateData.category = normalizeCategory(updates.category);
+    if (updates.category !== undefined) updateData.category = updates.category;
     if (updates.brand !== undefined) updateData.brand = updates.brand;
     if (updates.taxable !== undefined) updateData.taxable = updates.taxable;
     if (updates.attributes !== undefined) updateData.attributes = updates.attributes;

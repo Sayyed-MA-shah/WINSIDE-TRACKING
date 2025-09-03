@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addProduct } from '@/lib/db/shared-db';
-import { normalizeCategory } from '@/lib/categories';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
               product.description = value;
               break;
             case 'category':
-              product.category = normalizeCategory(value);
+              product.category = value;
               break;
             case 'brand':
               product.brand = value;
