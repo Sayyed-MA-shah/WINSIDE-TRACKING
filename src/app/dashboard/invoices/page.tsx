@@ -173,8 +173,8 @@ export default function InvoicesPage() {
 
       doc.setFont('helvetica', 'normal');
       doc.text(invoiceNumber, metadataX + 25, metadataStartY);
-      doc.text(invoice.createdAt.toLocaleDateString('en-GB'), metadataX + 25, metadataStartY + lineSpacing);
-      doc.text(invoice.dueDate.toLocaleDateString('en-GB'), metadataX + 25, metadataStartY + (lineSpacing * 2));
+      doc.text(new Date(invoice.createdAt).toLocaleDateString('en-GB'), metadataX + 25, metadataStartY + lineSpacing);
+      doc.text(new Date(invoice.dueDate).toLocaleDateString('en-GB'), metadataX + 25, metadataStartY + (lineSpacing * 2));
 
       // Customer info
       const cardsY = 40;
@@ -506,10 +506,10 @@ export default function InvoicesPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="dark:text-gray-300">
-                            {invoice.createdAt.toLocaleDateString()}
+                            {new Date(invoice.createdAt).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="dark:text-gray-300">
-                            {invoice.dueDate.toLocaleDateString()}
+                            {new Date(invoice.dueDate).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
@@ -570,8 +570,8 @@ export default function InvoicesPage() {
                       <h3 className="font-semibold mb-2">Invoice Information</h3>
                       <p><strong>Invoice #:</strong> {viewingInvoice.invoiceNumber}</p>
                       <p><strong>Status:</strong> <Badge variant={getStatusVariant(viewingInvoice.status)}>{viewingInvoice.status}</Badge></p>
-                      <p><strong>Created:</strong> {viewingInvoice.createdAt.toLocaleDateString()}</p>
-                      <p><strong>Due Date:</strong> {viewingInvoice.dueDate.toLocaleDateString()}</p>
+                      <p><strong>Created:</strong> {new Date(viewingInvoice.createdAt).toLocaleDateString()}</p>
+                      <p><strong>Due Date:</strong> {new Date(viewingInvoice.dueDate).toLocaleDateString()}</p>
                     </div>
                     <div>
                       <h3 className="font-semibold mb-2">Customer Information</h3>
