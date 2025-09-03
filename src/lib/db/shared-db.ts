@@ -405,7 +405,7 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
       paymentStatus: invoice.payment_status,
       dueDate: invoice.due_date ? new Date(invoice.due_date) : new Date(),
       notes: invoice.notes,
-      createdAt: new Date(invoice.created_at),
+      createdAt: invoice.created_at ? new Date(invoice.created_at) : new Date(),
       paidAt: invoice.paid_at ? new Date(invoice.paid_at) : undefined
     }));
   } catch (error) {
@@ -416,24 +416,46 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
 
 export const addInvoice = async (invoice: any): Promise<any> => {
   try {
+    // The invoice table expects customer_id as UUID, but we might be sending VARCHAR
+    // Let's first try to get the customer to ensure the ID is valid
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('id', invoice.customerId)
+      .single();
+
+    if (customerError) {
+      console.error('DB: Customer not found:', customerError);
+      throw new Error(`Customer not found: ${invoice.customerId}`);
+    }
+
+    console.log('DB: Found customer:', customerData);
+
+    // Prepare invoice data with proper types
     const invoiceData = {
       invoice_number: invoice.invoiceNumber,
-      customer_id: invoice.customerId,
+      customer_id: invoice.customerId, // This should match the customer UUID
       customer_name: invoice.customerName || null,
       date: invoice.date || null,
       items: invoice.items || [],
-      subtotal: invoice.subtotal,
+      subtotal: invoice.subtotal || 0,
       discount: invoice.discount || 0,
-      tax: invoice.tax,
+      tax: invoice.tax || 0,
       total: invoice.total,
       status: invoice.status || 'draft',
       payment_status: invoice.paymentStatus || 'unpaid',
-      due_date: invoice.dueDate ? invoice.dueDate.toISOString().split('T')[0] : null,
+      due_date: invoice.dueDate ? 
+        (typeof invoice.dueDate === 'string' ? 
+          invoice.dueDate.split('T')[0] : 
+          invoice.dueDate.toISOString().split('T')[0]) : null,
       notes: invoice.notes || null,
-      paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : null
+      paid_at: invoice.paidAt ? 
+        (typeof invoice.paidAt === 'string' ? 
+          invoice.paidAt : 
+          invoice.paidAt.toISOString()) : null
     };
 
-    console.log('DB: Attempting to insert invoice with data:', JSON.stringify(invoiceData, null, 2));
+    console.log('DB: Attempting to insert invoice:', JSON.stringify(invoiceData, null, 2));
 
     const { data, error } = await supabase
       .from('invoices')
@@ -442,17 +464,18 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       .single();
 
     if (error) {
-      console.error('DB: Error adding invoice:', error);
-      console.error('DB: Error details:', {
+      console.error('DB: Error inserting invoice:', error);
+      console.error('DB: Full error details:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
         code: error.code
       });
-      throw new Error('Failed to add invoice');
+      throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log('DB: Invoice added successfully:', data);
+    console.log('DB: Invoice created successfully:', data);
+
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
@@ -471,6 +494,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       createdAt: new Date(data.created_at),
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined
     };
+
   } catch (error) {
     console.error('Error in addInvoice:', error);
     throw error;
