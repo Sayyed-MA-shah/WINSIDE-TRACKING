@@ -21,108 +21,6 @@ export default function ProductsPage() {
 
   const categories = Array.from(new Set(products.map(p => p.category)));
 
-  const handleAddSampleProducts = async () => {
-    setActionLoading('sample');
-    setMigrationStatus('Adding sample products...');
-    
-    const sampleProducts = [
-      {
-        title: 'Wireless Headphones',
-        article: 'WH-001',
-        description: 'High-quality wireless headphones with noise cancellation',
-        category: 'Electronics',
-        brand: 'greenhil' as const,
-        taxable: true,
-        attributes: ['Size', 'Color'],
-        wholesale: 45.00,
-        retail: 99.99,
-        club: 89.99,
-        costBefore: 50.00,
-        costAfter: 45.00,
-        variants: [{
-          sku: 'WH-001-BLK',
-          size: 'One Size',
-          color: 'Black',
-          quantity: 50,
-          qty: 50,
-          price: 99.99,
-          cost: 45.00,
-          attributes: {}
-        }],
-        archived: false
-      },
-      {
-        title: 'Cotton T-Shirt',
-        article: 'TS-002',
-        description: 'Comfortable cotton t-shirt for everyday wear',
-        category: 'Clothing',
-        brand: 'harican' as const,
-        taxable: true,
-        attributes: ['Size', 'Color'],
-        wholesale: 8.00,
-        retail: 19.99,
-        club: 17.99,
-        costBefore: 10.00,
-        costAfter: 8.00,
-        variants: [
-          { sku: 'TS-002-BLK-M', size: 'M', color: 'Black', quantity: 25, qty: 25, price: 19.99, cost: 8.00, attributes: {} },
-          { sku: 'TS-002-BLK-L', size: 'L', color: 'Black', quantity: 30, qty: 30, price: 19.99, cost: 8.00, attributes: {} }
-        ],
-        archived: false
-      },
-      {
-        title: 'Gaming Mouse',
-        article: 'GM-003',
-        description: 'Precision gaming mouse with RGB lighting',
-        category: 'Electronics',
-        brand: 'byko' as const,
-        taxable: true,
-        attributes: ['Size', 'Color'],
-        wholesale: 25.00,
-        retail: 59.99,
-        club: 54.99,
-        costBefore: 30.00,
-        costAfter: 25.00,
-        variants: [{
-          sku: 'GM-003-RGB',
-          size: 'One Size',
-          color: 'RGB',
-          quantity: 75,
-          qty: 75,
-          price: 59.99,
-          cost: 25.00,
-          attributes: {}
-        }],
-        archived: false
-      }
-    ];
-
-    try {
-      for (const productData of sampleProducts) {
-        const newProductId = generateId('product');
-        const newProduct: Product = {
-          ...productData,
-          id: newProductId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          variants: productData.variants.map((v, index) => ({
-            ...v,
-            id: generateId('variant'),
-            productId: newProductId
-          }))
-        };
-        await addProduct(newProduct);
-      }
-      setMigrationStatus('✅ Sample products added successfully!');
-    } catch (error) {
-      console.error('Error adding sample products:', error);
-      setMigrationStatus('❌ Failed to add sample products.');
-    } finally {
-      setActionLoading(null);
-      setTimeout(() => setMigrationStatus(null), 5000);
-    }
-  };
-
   const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -276,14 +174,6 @@ export default function ProductsPage() {
             <p className="text-gray-600 dark:text-gray-400">Manage your product catalog with variants</p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleAddSampleProducts}
-              disabled={isLoading || actionLoading === 'sample'}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Package className="w-4 h-4 mr-2" />
-              {actionLoading === 'sample' ? 'Adding...' : 'Add Sample Products'}
-            </button>
             <button
               onClick={handleCSVImportClick}
               disabled={isLoading || actionLoading === 'import'}
