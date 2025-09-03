@@ -37,32 +37,51 @@ import { Invoice, Customer, Product } from '@/lib/types';
 export default function InvoicesPage() {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // Load invoices from API
+  // Load invoices and products from API
   useEffect(() => {
-    fetchInvoices();
+    fetchData();
   }, []);
 
-  const fetchInvoices = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/invoices');
-      if (response.ok) {
-        const data = await response.json();
-        setInvoices(data);
+      // Fetch both invoices and products in parallel
+      const [invoicesRes, productsRes] = await Promise.all([
+        fetch('/api/invoices'),
+        fetch('/api/products')
+      ]);
+      
+      if (invoicesRes.ok) {
+        const invoicesData = await invoicesRes.json();
+        setInvoices(invoicesData);
       } else {
         console.error('Failed to fetch invoices');
       }
+      
+      if (productsRes.ok) {
+        const productsData = await productsRes.json();
+        setProducts(productsData);
+      } else {
+        console.error('Failed to fetch products');
+      }
     } catch (error) {
-      console.error('Error fetching invoices:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to get product name by ID
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    return product ? product.title : 'Unknown Product';
   };
 
   const filteredInvoices = invoices.filter(invoice => {
@@ -199,16 +218,22 @@ export default function InvoicesPage() {
       // Table
       const tableStartY = cardsY + 40;
       
-      const tableData = invoice.items.map((item, index) => [
-        (index + 1).toString(),
-        `Product Item ${index + 1}`,
-        '-',
-        item.quantity.toString(),
-        `£${item.unitPrice.toFixed(2)}`,
-        '0%',
-        '0%',
-        `£${item.total.toFixed(2)}`
-      ]);
+      const tableData = invoice.items.map((item, index) => {
+        const product = products.find(p => p.id === item.productId);
+        const productName = product ? product.title : `Product Item ${index + 1}`;
+        const productSku = product ? product.article : '-';
+        
+        return [
+          (index + 1).toString(),
+          productName,
+          productSku,
+          item.quantity.toString(),
+          `£${item.unitPrice.toFixed(2)}`,
+          '0%',
+          '0%',
+          `£${item.total.toFixed(2)}`
+        ];
+      });
 
       autoTable(doc, {
         startY: tableStartY,
@@ -608,7 +633,7 @@ export default function InvoicesPage() {
                       <TableBody>
                         {viewingInvoice.items.map((item, index) => (
                           <TableRow key={item.id}>
-                            <TableCell>Product Item {index + 1}</TableCell>
+                            <TableCell>{getProductName(item.productId)}</TableCell>
                             <TableCell>{item.quantity}</TableCell>
                             <TableCell>£{item.unitPrice.toFixed(2)}</TableCell>
                             <TableCell>£{item.total.toFixed(2)}</TableCell>
