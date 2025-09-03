@@ -20,6 +20,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -351,6 +352,12 @@ export default function CustomersPage() {
                   <DialogTitle className="dark:text-white">
                     {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
                   </DialogTitle>
+                  <DialogDescription className="dark:text-gray-300">
+                    {editingCustomer 
+                      ? 'Update customer information and contact details.' 
+                      : 'Enter customer information to create a new customer record.'
+                    }
+                  </DialogDescription>
                 </DialogHeader>
                 
                 {/* Error Display */}

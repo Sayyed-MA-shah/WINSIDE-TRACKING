@@ -162,34 +162,93 @@ export default function EditInvoicePage() {
   const invoiceId = params.id as string;
   
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('draft');
   const [dueDate, setDueDate] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   
+  // Fetch invoice, customers, and products data
   useEffect(() => {
-    // Find the invoice to edit
-    const foundInvoice = mockInvoices.find(inv => inv.id === invoiceId);
-    if (foundInvoice) {
-      setInvoice(foundInvoice);
-      setSelectedCustomer(foundInvoice.customer || null);
-      setSelectedStatus(foundInvoice.status);
-      setDueDate(foundInvoice.dueDate.toISOString().split('T')[0]);
-    }
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch all required data in parallel
+        const [invoiceRes, customersRes, productsRes] = await Promise.all([
+          fetch(`/api/invoices/${invoiceId}`),
+          fetch('/api/customers'),
+          fetch('/api/products')
+        ]);
+        
+        if (!invoiceRes.ok) {
+          console.error('Failed to fetch invoice');
+          return;
+        }
+        
+        const [invoiceData, customersData, productsData] = await Promise.all([
+          invoiceRes.json(),
+          customersRes.json(),
+          productsRes.json()
+        ]);
+        
+        setInvoice(invoiceData);
+        setCustomers(customersData);
+        setProducts(productsData);
+        setSelectedCustomer(invoiceData.customer || null);
+        setSelectedStatus(invoiceData.status);
+        setDueDate(new Date(invoiceData.dueDate).toISOString().split('T')[0]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [invoiceId]);
 
-  const handleSaveInvoice = () => {
+  const handleSaveInvoice = async () => {
     if (!invoice) return;
     
-    // Here you would typically save to your backend
-    console.log('Saving invoice:', {
-      ...invoice,
-      customer: selectedCustomer,
-      status: selectedStatus,
-      dueDate: new Date(dueDate)
-    });
-    
-    // Navigate back to invoices list
-    router.push('/dashboard/invoices');
+    try {
+      setSaving(true);
+      
+      const updateData = {
+        customerId: selectedCustomer?.id,
+        status: selectedStatus,
+        dueDate: new Date(dueDate).toISOString(),
+        items: invoice.items,
+        subtotal: invoice.subtotal,
+        tax: invoice.tax,
+        total: invoice.total
+      };
+      
+      const response = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update invoice');
+      }
+      
+      const updatedInvoice = await response.json();
+      console.log('Invoice updated successfully:', updatedInvoice);
+      
+      // Navigate back to invoices list
+      router.push('/dashboard/invoices');
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      alert('Failed to save invoice. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeItem = (itemId: string) => {
@@ -221,6 +280,19 @@ export default function EditInvoicePage() {
       total: subtotal + invoice.tax
     });
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">Loading invoice...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!invoice) {
     return (
@@ -261,9 +333,13 @@ export default function EditInvoicePage() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSaveInvoice} className="bg-primary hover:bg-primary/90">
+          <Button 
+            onClick={handleSaveInvoice} 
+            disabled={saving}
+            className="bg-primary hover:bg-primary/90"
+          >
             <Save className="h-4 w-4 mr-2" />
-            Save Changes
+            {saving ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
 
@@ -322,7 +398,7 @@ export default function EditInvoicePage() {
                 <Select 
                   value={selectedCustomer?.id || ''} 
                   onValueChange={(value) => {
-                    const customer = mockCustomers.find(c => c.id === value);
+                    const customer = customers.find(c => c.id === value);
                     setSelectedCustomer(customer || null);
                   }}
                 >
@@ -330,7 +406,7 @@ export default function EditInvoicePage() {
                     <SelectValue placeholder="Select a customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockCustomers.map((customer) => (
+                    {customers.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id}>
                         {customer.name} - {customer.type}
                       </SelectItem>

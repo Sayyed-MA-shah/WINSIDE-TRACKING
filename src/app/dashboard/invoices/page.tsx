@@ -20,6 +20,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -570,6 +571,9 @@ export default function InvoicesPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Invoice Details</DialogTitle>
+                <DialogDescription>
+                  View complete invoice information including customer details, items, and payment status.
+                </DialogDescription>
               </DialogHeader>
               {viewingInvoice && (
                 <div className="space-y-4">
