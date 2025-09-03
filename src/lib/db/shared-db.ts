@@ -486,11 +486,34 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
       return [];
     }
 
+    // Fetch all customers to map with invoices
+    const { data: customersData, error: customersError } = await supabase
+      .from('customers')
+      .select('*');
+
+    const customersMap = new Map();
+    if (!customersError && customersData) {
+      customersData.forEach(customerData => {
+        customersMap.set(customerData.id, {
+          id: customerData.id,
+          name: customerData.name,
+          phone: customerData.phone,
+          company: customerData.company,
+          address: customerData.address,
+          type: customerData.type,
+          createdAt: new Date(customerData.created_at),
+          totalOrders: customerData.total_orders || 0,
+          totalSpent: customerData.total_spent || 0
+        });
+      });
+    }
+
     return (data || []).map(invoice => ({
       id: invoice.id,
       invoiceNumber: invoice.invoice_number,
       customerId: invoice.customer_id,
       customerName: invoice.customer_name,
+      customer: customersMap.get(invoice.customer_id) || null, // Include full customer object
       date: invoice.date,
       items: invoice.items || [],
       subtotal: invoice.subtotal,
