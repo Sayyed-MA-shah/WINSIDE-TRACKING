@@ -159,10 +159,14 @@ export default function CreateInvoicePage() {
     try {
       // Determine invoice status based on payment
       let status: 'paid' | 'pending' | 'partial' = 'pending';
+      let paymentStatus: 'paid' | 'unpaid' | 'partial' = 'unpaid';
+      
       if (paidAmount >= grandTotal) {
         status = 'paid';
+        paymentStatus = 'paid';
       } else if (paidAmount > 0) {
         status = 'partial';
+        paymentStatus = 'partial';
       }
 
       const invoiceData = {
@@ -182,7 +186,7 @@ export default function CreateInvoicePage() {
         tax: taxAmount, // Map taxAmount to tax
         total: grandTotal,
         status,
-        paymentStatus: status, // Map status to paymentStatus
+        paymentStatus: paymentStatus, // Use the separate paymentStatus variable
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
         notes: `Invoice created. Paid: $${paidAmount.toFixed(2)}, Balance: $${balanceDue.toFixed(2)}`
       };

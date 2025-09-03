@@ -462,7 +462,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
       tax: invoice.tax || 0,
       total: invoice.total,
       status: invoice.status || 'draft',
-      payment_status: invoice.paymentStatus || 'unpaid',
+      payment_status: invoice.paymentStatus === 'pending' ? 'unpaid' : (invoice.paymentStatus || 'unpaid'),
       due_date: invoice.dueDate ? 
         (typeof invoice.dueDate === 'string' ? 
           invoice.dueDate.split('T')[0] : 
@@ -538,7 +538,7 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     if (updates.tax !== undefined) updateData.tax = updates.tax;
     if (updates.total !== undefined) updateData.total = updates.total;
     if (updates.status !== undefined) updateData.status = updates.status;
-    if (updates.paymentStatus !== undefined) updateData.payment_status = updates.paymentStatus;
+    if (updates.paymentStatus !== undefined) updateData.payment_status = updates.paymentStatus === 'pending' ? 'unpaid' : updates.paymentStatus;
     if (updates.dueDate !== undefined) updateData.due_date = updates.dueDate ? updates.dueDate.toISOString().split('T')[0] : null;
     if (updates.notes !== undefined) updateData.notes = updates.notes;
     if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt ? updates.paidAt.toISOString() : null;
