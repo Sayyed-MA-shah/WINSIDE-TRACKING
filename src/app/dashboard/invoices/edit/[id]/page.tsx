@@ -355,6 +355,10 @@ export default function EditInvoicePage() {
                 <span>£{invoice.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
+                <span>Discount:</span>
+                <span>-£{(invoice.discount || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Tax:</span>
                 <span>£{invoice.tax.toFixed(2)}</span>
               </div>

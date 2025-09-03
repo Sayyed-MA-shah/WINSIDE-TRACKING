@@ -283,7 +283,7 @@ export default function InvoicesPage() {
       const summaryX = pageWidth - 65;
       const summaryWidth = 55;
       
-      let boxHeight = 45;
+      let boxHeight = 51; // Increased height to accommodate discount line
       if (invoice.status === 'paid' || invoice.paymentStatus === 'partial') boxHeight += 12;
       
       doc.setDrawColor(lightGray);
@@ -300,6 +300,10 @@ export default function InvoicesPage() {
       
       doc.text('Subtotal:', labelX, currentY);
       doc.text(`£${invoice.subtotal.toFixed(2)}`, valueX, currentY, { align: 'right' });
+      currentY += 6;
+      
+      doc.text('Discount:', labelX, currentY);
+      doc.text(`-£${(invoice.discount || 0).toFixed(2)}`, valueX, currentY, { align: 'right' });
       currentY += 6;
       
       doc.text('Tax:', labelX, currentY);
@@ -647,6 +651,7 @@ export default function InvoicesPage() {
                     <div className="flex justify-end space-y-1">
                       <div className="text-right">
                         <p><strong>Subtotal:</strong> £{viewingInvoice.subtotal.toFixed(2)}</p>
+                        <p><strong>Discount:</strong> -£{(viewingInvoice.discount || 0).toFixed(2)}</p>
                         <p><strong>Tax:</strong> £{viewingInvoice.tax.toFixed(2)}</p>
                         <p className="text-lg"><strong>Total:</strong> £{viewingInvoice.total.toFixed(2)}</p>
                         {viewingInvoice.status === 'paid' && (
