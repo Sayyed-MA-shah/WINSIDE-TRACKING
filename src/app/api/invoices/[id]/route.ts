@@ -36,20 +36,26 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     
+    console.log('PUT /api/invoices/[id] - Updating invoice:', id);
+    console.log('PUT /api/invoices/[id] - Update data:', JSON.stringify(body, null, 2));
+    
     const updatedInvoice = await updateInvoice(id, body);
     
     if (!updatedInvoice) {
+      console.error('PUT /api/invoices/[id] - Invoice not found:', id);
       return NextResponse.json(
         { error: 'Invoice not found' },
         { status: 404 }
       );
     }
     
+    console.log('PUT /api/invoices/[id] - Successfully updated invoice:', updatedInvoice.id);
     return NextResponse.json(updatedInvoice);
   } catch (error) {
-    console.error('Error updating invoice:', error);
+    console.error('PUT /api/invoices/[id] - Error updating invoice:', error);
+    console.error('PUT /api/invoices/[id] - Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to update invoice' },
+      { error: 'Failed to update invoice', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

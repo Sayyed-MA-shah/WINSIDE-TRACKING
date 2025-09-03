@@ -639,9 +639,27 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.paymentStatus !== undefined) updateData.payment_status = updates.paymentStatus === 'pending' ? 'unpaid' : updates.paymentStatus;
     if (updates.paidAmount !== undefined) updateData.paid_amount = updates.paidAmount;
-    if (updates.dueDate !== undefined) updateData.due_date = updates.dueDate ? updates.dueDate.toISOString().split('T')[0] : null;
+    if (updates.dueDate !== undefined) {
+      // Handle both Date objects and ISO strings
+      if (updates.dueDate instanceof Date) {
+        updateData.due_date = updates.dueDate.toISOString().split('T')[0];
+      } else if (typeof updates.dueDate === 'string') {
+        updateData.due_date = new Date(updates.dueDate).toISOString().split('T')[0];
+      } else {
+        updateData.due_date = null;
+      }
+    }
     if (updates.notes !== undefined) updateData.notes = updates.notes;
-    if (updates.paidAt !== undefined) updateData.paid_at = updates.paidAt ? updates.paidAt.toISOString() : null;
+    if (updates.paidAt !== undefined) {
+      // Handle both Date objects and ISO strings
+      if (updates.paidAt instanceof Date) {
+        updateData.paid_at = updates.paidAt.toISOString();
+      } else if (typeof updates.paidAt === 'string') {
+        updateData.paid_at = updates.paidAt;
+      } else {
+        updateData.paid_at = null;
+      }
+    }
 
     const { data, error } = await supabase
       .from('invoices')
@@ -655,11 +673,36 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
       throw new Error('Failed to update invoice');
     }
 
+    // Fetch customer data if customer_id exists
+    let customer = null;
+    if (data.customer_id) {
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', data.customer_id)
+        .single();
+
+      if (!customerError && customerData) {
+        customer = {
+          id: customerData.id,
+          name: customerData.name,
+          phone: customerData.phone,
+          company: customerData.company,
+          address: customerData.address,
+          type: customerData.type,
+          createdAt: new Date(customerData.created_at),
+          totalOrders: customerData.total_orders || 0,
+          totalSpent: customerData.total_spent || 0
+        };
+      }
+    }
+
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
       customerId: data.customer_id,
       customerName: data.customer_name,
+      customer: customer, // Include the full customer object
       date: data.date,
       items: data.items || [],
       subtotal: data.subtotal,
@@ -713,11 +756,36 @@ export const getInvoiceById = async (id: string): Promise<any | null> => {
       return null;
     }
 
+    // Fetch customer data if customer_id exists
+    let customer = null;
+    if (data.customer_id) {
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', data.customer_id)
+        .single();
+
+      if (!customerError && customerData) {
+        customer = {
+          id: customerData.id,
+          name: customerData.name,
+          phone: customerData.phone,
+          company: customerData.company,
+          address: customerData.address,
+          type: customerData.type,
+          createdAt: new Date(customerData.created_at),
+          totalOrders: customerData.total_orders || 0,
+          totalSpent: customerData.total_spent || 0
+        };
+      }
+    }
+
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
       customerId: data.customer_id,
       customerName: data.customer_name,
+      customer: customer, // Include the full customer object
       date: data.date,
       items: data.items || [],
       subtotal: data.subtotal,
