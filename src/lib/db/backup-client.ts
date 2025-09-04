@@ -26,17 +26,36 @@ export async function createClientBackup(): Promise<{
       console.warn('Could not read customers:', customersError);
     }
 
-    // Read all products with variants
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select(`
-        *,
-        variants (*)
-      `)
-      .order('created_at', { ascending: true });
+    // Read all products with variants (handle gracefully if table doesn't exist)
+    let products = [];
+    try {
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          variants (*)
+        `)
+        .order('created_at', { ascending: true });
 
-    if (productsError) {
-      console.warn('Could not read products:', productsError);
+      if (productsError) {
+        console.warn('Could not read products with variants, trying without variants:', productsError);
+        
+        // Try without variants relationship
+        const { data: simpleProducts, error: simpleError } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: true });
+          
+        if (simpleError) {
+          console.warn('Could not read products table:', simpleError);
+        } else {
+          products = simpleProducts || [];
+        }
+      } else {
+        products = productsData || [];
+      }
+    } catch (error) {
+      console.warn('Products table may not exist:', error);
     }
 
     // Read all invoices
