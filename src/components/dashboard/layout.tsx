@@ -18,7 +18,8 @@ import {
   X,
   LogOut,
   Shield,
-  User
+  User,
+  Database
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -70,6 +71,11 @@ export function DashboardLayout({ children }: SidebarProps) {
       name: 'User Management',
       href: '/dashboard/admin/users',
       icon: Shield,
+    },
+    {
+      name: 'Backup & Restore',
+      href: '/dashboard/admin/backup',
+      icon: Database,
     }
   ] : [];
 
