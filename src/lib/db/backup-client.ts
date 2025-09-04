@@ -26,33 +26,41 @@ export async function createClientBackup(): Promise<{
       console.warn('Could not read customers:', customersError);
     }
 
-    // Read all products with variants (handle gracefully if table doesn't exist)
+    // Read all products (use same approach as getAllProducts function)
     let products = [];
     try {
+      console.log('🔍 Fetching products...');
+      
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select(`
-          *,
-          variants (*)
-        `)
-        .order('created_at', { ascending: true });
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (productsError) {
-        console.warn('Could not read products with variants, trying without variants:', productsError);
-        
-        // Try without variants relationship
-        const { data: simpleProducts, error: simpleError } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: true });
-          
-        if (simpleError) {
-          console.warn('Could not read products table:', simpleError);
-        } else {
-          products = simpleProducts || [];
-        }
+        console.warn('Could not read products table:', productsError);
       } else {
         products = productsData || [];
+        console.log(`📦 Found ${products.length} products in database`);
+      }
+      
+      // Try to get variants separately if products exist
+      if (products.length > 0) {
+        try {
+          const { data: variantsData, error: variantsError } = await supabase
+            .from('variants')
+            .select('*');
+            
+          if (!variantsError && variantsData) {
+            console.log(`🔗 Found ${variantsData.length} variants`);
+            // Attach variants to products
+            products = products.map(product => ({
+              ...product,
+              variants: variantsData.filter(variant => variant.product_id === product.id)
+            }));
+          }
+        } catch (variantError) {
+          console.warn('Could not fetch variants, continuing without them:', variantError);
+        }
       }
     } catch (error) {
       console.warn('Products table may not exist:', error);
