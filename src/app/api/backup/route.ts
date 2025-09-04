@@ -1,30 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createBackup } from '@/lib/db/backup-restore';
+import { createClientBackup } from '@/lib/db/backup-client';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Backup API called');
     
-    // Check if required environment variables are available
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({
-        success: false,
-        error: 'Service role key not configured. Please configure SUPABASE_SERVICE_ROLE_KEY in your environment variables.'
-      }, { status: 500 });
+    // Try admin backup first if service role key is available
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('🔑 Service role key found, trying admin backup...');
+      try {
+        const result = await createBackup();
+        
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            data: result.data,
+            message: 'Admin backup created successfully'
+          });
+        } else {
+          console.log('⚠️ Admin backup failed, falling back to client backup...');
+        }
+      } catch (adminError) {
+        console.log('⚠️ Admin backup error, falling back to client backup:', adminError);
+      }
+    } else {
+      console.log('🔄 No service role key, using client backup...');
     }
     
-    const result = await createBackup();
+    // Fallback to client backup
+    const clientResult = await createClientBackup();
     
-    if (result.success) {
+    if (clientResult.success) {
       return NextResponse.json({
         success: true,
-        data: result.data,
-        message: 'Backup created successfully'
+        data: clientResult.data,
+        message: 'Client backup created successfully'
       });
     } else {
       return NextResponse.json({
         success: false,
-        error: result.error || 'Unknown error'
+        error: clientResult.error || 'Both admin and client backup failed'
       }, { status: 500 });
     }
     

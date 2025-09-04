@@ -26,10 +26,10 @@ export async function createClientBackup(): Promise<{
       console.warn('Could not read customers:', customersError);
     }
 
-    // Read all products (use same approach as getAllProducts function)
-    let products = [];
+    // Read all products using EXACT same method as working /api/products endpoint
+    let products: Product[] = [];
     try {
-      console.log('🔍 Fetching products...');
+      console.log('🔍 Fetching products using same method as working app...');
       
       const { data: productsData, error: productsError } = await supabase
         .from('products')
@@ -38,32 +38,35 @@ export async function createClientBackup(): Promise<{
 
       if (productsError) {
         console.warn('Could not read products table:', productsError);
+        products = [];
       } else {
-        products = productsData || [];
+        // Transform using EXACT same logic as shared-db.ts getAllProducts
+        products = (productsData || []).map(product => ({
+          id: product.id,
+          article: product.article,
+          title: product.title,
+          category: product.category,
+          brand: product.brand,
+          taxable: product.taxable,
+          attributes: product.attributes || [],
+          mediaMain: product.media_main,
+          archived: product.archived,
+          wholesale: product.wholesale,
+          retail: product.retail,
+          club: product.club,
+          costBefore: product.cost_before,
+          costAfter: product.cost_after,
+          variants: product.variants || [], // Use variants from products table directly
+          createdAt: new Date(product.created_at),
+          updatedAt: new Date(product.updated_at)
+        }));
+        
         console.log(`📦 Found ${products.length} products in database`);
-      }
-      
-      // Try to get variants separately if products exist
-      if (products.length > 0) {
-        try {
-          const { data: variantsData, error: variantsError } = await supabase
-            .from('variants')
-            .select('*');
-            
-          if (!variantsError && variantsData) {
-            console.log(`🔗 Found ${variantsData.length} variants`);
-            // Attach variants to products
-            products = products.map(product => ({
-              ...product,
-              variants: variantsData.filter(variant => variant.product_id === product.id)
-            }));
-          }
-        } catch (variantError) {
-          console.warn('Could not fetch variants, continuing without them:', variantError);
-        }
+        console.log(`🔗 Total variants across all products: ${products.reduce((sum, p) => sum + (p.variants?.length || 0), 0)}`);
       }
     } catch (error) {
       console.warn('Products table may not exist:', error);
+      products = [];
     }
 
     // Read all invoices
