@@ -278,7 +278,7 @@ export default function InvoicesPage() {
         pageBreak: 'auto'
       });
 
-      // Totals
+      // Totals with page break logic
       const tableEndY = (doc as any).lastAutoTable.finalY + 10;
       const summaryX = pageWidth - 65;
       const summaryWidth = 55;
@@ -286,15 +286,28 @@ export default function InvoicesPage() {
       let boxHeight = 51; // Increased height to accommodate discount line
       if (invoice.status === 'paid' || invoice.paymentStatus === 'partial') boxHeight += 12;
       
+      // Page break detection
+      const bottomMargin = 40; // Space for footer
+      const maxContentY = pageHeight - bottomMargin;
+      let totalsY = tableEndY - 3;
+      let needsNewPage = false;
+      
+      // Check if totals box would exceed page boundaries
+      if (totalsY + boxHeight > maxContentY) {
+        needsNewPage = true;
+        doc.addPage();
+        totalsY = 20; // Start at top of new page with margin
+      }
+      
       doc.setDrawColor(lightGray);
       doc.setLineWidth(0.3);
-      doc.rect(summaryX, tableEndY - 3, summaryWidth, boxHeight);
+      doc.rect(summaryX, totalsY, summaryWidth, boxHeight);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(darkGray);
       
-      let currentY = tableEndY + 3;
+      let currentY = totalsY + 6;
       const labelX = summaryX + 3;
       const valueX = summaryX + summaryWidth - 3;
       
@@ -338,8 +351,8 @@ export default function InvoicesPage() {
         doc.text('£0.00', valueX, currentY, { align: 'right' });
       }
 
-      // Footer
-      const footerY = 270;
+      // Footer - position dynamically based on whether we added a new page
+      const footerY = needsNewPage ? pageHeight - 35 : 270;
       
       doc.setDrawColor(lightGray);
       doc.setLineWidth(0.5);
