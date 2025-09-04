@@ -6,7 +6,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Download, Upload, Shield, AlertTriangle, CheckCircle, Database } from 'lucide-react';
-import { downloadBackup } from '@/lib/db/backup-restore';
+
+// Client-side download function
+function downloadBackup(backupData: any): void {
+  const dataStr = JSON.stringify(backupData, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `winside-backup-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}
 
 export default function BackupRestorePage() {
   const [isBackupLoading, setIsBackupLoading] = useState(false);
