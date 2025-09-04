@@ -5,6 +5,14 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Backup API called');
     
+    // Check if required environment variables are available
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({
+        success: false,
+        error: 'Service role key not configured. Please configure SUPABASE_SERVICE_ROLE_KEY in your environment variables.'
+      }, { status: 500 });
+    }
+    
     const result = await createBackup();
     
     if (result.success) {

@@ -16,6 +16,11 @@ export async function createBackup(): Promise<{
   try {
     console.log('🔄 Creating backup - reading data only...');
 
+    // Check if supabaseAdmin is properly configured
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Missing required Supabase environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    }
+
     // Read all customers
     const { data: customers, error: customersError } = await supabaseAdmin
       .from('customers')

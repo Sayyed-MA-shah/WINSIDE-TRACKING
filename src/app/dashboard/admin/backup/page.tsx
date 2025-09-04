@@ -21,12 +21,24 @@ export default function BackupRestorePage() {
     setBackupResult(null);
 
     try {
-      const response = await fetch('/api/backup', {
+      // Try the admin backup first, fallback to client backup if service role not available
+      let response = await fetch('/api/backup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+
+      // If admin backup fails due to missing service role, try client backup
+      if (!response.ok) {
+        console.log('Admin backup failed, trying client backup...');
+        response = await fetch('/api/backup-client', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      }
 
       const result = await response.json();
 
@@ -48,7 +60,7 @@ export default function BackupRestorePage() {
     } catch (error) {
       setBackupResult({
         success: false,
-        message: 'Failed to create backup'
+        message: 'Failed to create backup. Please check your environment configuration.'
       });
     } finally {
       setIsBackupLoading(false);
