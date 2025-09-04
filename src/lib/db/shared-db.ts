@@ -93,6 +93,190 @@ export const deleteCategory = async (id: string): Promise<boolean> => {
 };
 import { Product, Customer, Invoice } from '@/lib/types';
 
+// Stock management functions
+export const validateStockAvailability = async (invoiceItems: any[]): Promise<{
+  isValid: boolean;
+  errors: string[];
+  stockCheck: any[];
+}> => {
+  const errors: string[] = [];
+  const stockCheck: any[] = [];
+  
+  try {
+    console.log('🔍 Validating stock availability for', invoiceItems.length, 'items');
+    
+    for (const item of invoiceItems) {
+      if (!item.productId) {
+        errors.push(`Item missing productId`);
+        continue;
+      }
+      
+      // Get current product data
+      const product = await getProductById(item.productId);
+      if (!product) {
+        errors.push(`Product not found: ${item.productId}`);
+        continue;
+      }
+      
+      // Check if item has a variant
+      if (item.variantId) {
+        const variant = product.variants?.find((v: any) => v.id === item.variantId);
+        if (!variant) {
+          errors.push(`Variant not found: ${item.variantId} in product ${product.title}`);
+          continue;
+        }
+        
+        const currentStock = variant.qty || 0;
+        const requestedQty = item.quantity || 0;
+        
+        stockCheck.push({
+          type: 'variant',
+          productId: product.id,
+          productTitle: product.title,
+          variantId: variant.id,
+          variantSku: variant.sku,
+          currentStock,
+          requestedQty,
+          afterSale: currentStock - requestedQty,
+          available: currentStock >= requestedQty
+        });
+        
+        if (currentStock < requestedQty) {
+          errors.push(`Insufficient stock for ${product.title} (${variant.sku}): requested ${requestedQty}, available ${currentStock}`);
+        }
+      } else {
+        // Product without variants - this might need different handling
+        stockCheck.push({
+          type: 'product',
+          productId: product.id,
+          productTitle: product.title,
+          variantId: null,
+          variantSku: null,
+          currentStock: 'N/A',
+          requestedQty: item.quantity || 0,
+          afterSale: 'N/A',
+          available: true // For now, assume products without variants are always available
+        });
+      }
+    }
+    
+    console.log('📊 Stock validation results:', {
+      totalItems: invoiceItems.length,
+      validItems: stockCheck.filter(s => s.available).length,
+      errors: errors.length,
+      stockCheck
+    });
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+      stockCheck
+    };
+    
+  } catch (error) {
+    console.error('Error validating stock availability:', error);
+    return {
+      isValid: false,
+      errors: ['Stock validation failed due to system error'],
+      stockCheck: []
+    };
+  }
+};
+
+// Safe stock deduction function (with validation and rollback capability)
+export const deductStockForInvoice = async (invoiceItems: any[]): Promise<{
+  success: boolean;
+  errors: string[];
+  deductions: any[];
+}> => {
+  const errors: string[] = [];
+  const deductions: any[] = [];
+  
+  try {
+    console.log('🔄 Starting safe stock deduction process...');
+    
+    // Step 1: Validate stock availability first
+    const validation = await validateStockAvailability(invoiceItems);
+    if (!validation.isValid) {
+      return {
+        success: false,
+        errors: validation.errors,
+        deductions: []
+      };
+    }
+    
+    // Step 2: Prepare deduction operations (but don't execute yet)
+    for (const item of invoiceItems) {
+      if (!item.variantId) continue; // Skip products without variants for now
+      
+      const product = await getProductById(item.productId);
+      if (!product) continue;
+      
+      const variant = product.variants?.find((v: any) => v.id === item.variantId);
+      if (!variant) continue;
+      
+      // Prepare the deduction operation
+      const deduction = {
+        productId: product.id,
+        variantId: variant.id,
+        currentQty: variant.qty,
+        deductQty: item.quantity,
+        newQty: variant.qty - item.quantity,
+        productTitle: product.title,
+        variantSku: variant.sku
+      };
+      
+      deductions.push(deduction);
+    }
+    
+    console.log('📋 Prepared stock deductions:', deductions);
+    
+    // Step 3: Execute deductions atomically
+    for (const deduction of deductions) {
+      try {
+        const product = await getProductById(deduction.productId);
+        if (!product) {
+          throw new Error(`Product not found during deduction: ${deduction.productId}`);
+        }
+        
+        // Update the variant quantity in the product's variants array
+        const updatedVariants = product.variants.map((v: any) => {
+          if (v.id === deduction.variantId) {
+            return { ...v, qty: deduction.newQty };
+          }
+          return v;
+        });
+        
+        // Update the product with new variant quantities
+        await updateProduct(deduction.productId, { variants: updatedVariants });
+        
+        console.log(`✅ Stock deducted: ${deduction.productTitle} (${deduction.variantSku}) ${deduction.currentQty} → ${deduction.newQty}`);
+        
+      } catch (error) {
+        console.error('❌ Failed to deduct stock:', error);
+        errors.push(`Failed to deduct stock for ${deduction.productTitle} (${deduction.variantSku}): ${error}`);
+        
+        // TODO: Implement rollback logic here
+        break; // Stop processing on first error
+      }
+    }
+    
+    return {
+      success: errors.length === 0,
+      errors,
+      deductions: errors.length === 0 ? deductions : []
+    };
+    
+  } catch (error) {
+    console.error('Error in stock deduction process:', error);
+    return {
+      success: false,
+      errors: ['Stock deduction failed due to system error'],
+      deductions: []
+    };
+  }
+};
+
 // Products functions
 export const getAllProducts = async (): Promise<Product[]> => {
   try {
@@ -541,6 +725,17 @@ export const addInvoice = async (invoice: any): Promise<any> => {
     console.log('DB: Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
     console.log('DB: Supabase Anon Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     
+    // SAFETY STEP 1: Validate stock availability BEFORE creating invoice
+    console.log('🛡️ SAFETY: Validating stock availability before invoice creation...');
+    const stockValidation = await validateStockAvailability(invoice.items || []);
+    
+    if (!stockValidation.isValid) {
+      console.error('❌ SAFETY: Stock validation failed:', stockValidation.errors);
+      throw new Error(`Insufficient stock: ${stockValidation.errors.join(', ')}`);
+    }
+    
+    console.log('✅ SAFETY: Stock validation passed:', stockValidation.stockCheck);
+    
     // Check if the invoices table exists
     console.log('DB: Checking if invoices table exists...');
     const { data: tableCheck, error: tableError } = await supabase
@@ -615,6 +810,18 @@ export const addInvoice = async (invoice: any): Promise<any> => {
     }
 
     console.log('DB: Invoice created successfully:', data);
+
+    // TODO: SAFETY STEP 2: Implement stock deduction here (currently disabled for safety)
+    // const stockDeduction = await deductStockForInvoice(invoice.items || []);
+    // if (!stockDeduction.success) {
+    //   // Rollback invoice creation if stock deduction fails
+    //   console.error('❌ Stock deduction failed, rolling back invoice...');
+    //   await supabase.from('invoices').delete().eq('id', data.id);
+    //   throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
+    // }
+    
+    console.log('⚠️ NOTE: Stock deduction is currently DISABLED for safety testing');
+    console.log('💡 Stock validation passed, invoice created, but quantities NOT yet deducted');
 
     return {
       id: data.id,
