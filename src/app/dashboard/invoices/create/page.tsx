@@ -230,6 +230,21 @@ export default function CreateInvoicePage() {
       const jsPDF = (await import('jspdf')).default;
       const { default: autoTable } = await import('jspdf-autotable');
 
+      // Load logo first
+      let logoData = null;
+      try {
+        const response = await fetch('/images/BrandSports-logo.jpg');
+        const blob = await response.blob();
+        logoData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.log('Logo loading failed:', error);
+      }
+
       const doc = new jsPDF('p', 'mm', 'a4'); // Explicit A4 sizing
       const invoiceNumber = getNextInvoiceNumber();
       
@@ -250,18 +265,23 @@ export default function CreateInvoicePage() {
       doc.setFillColor(primaryColor);
       doc.rect(0, 0, pageWidth, 4, 'F');
 
-      // Logo Area - Styled Text Logo
-      doc.setDrawColor(primaryColor);
-      doc.setLineWidth(2);
-      doc.rect(margin, 8, 20, 20);
-      
-      // Company Logo Text
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.setTextColor(primaryColor);
-      doc.text('BYKO', margin + 3, 18);
-      doc.setFontSize(10);
-      doc.text('SPORTS', margin + 2, 24);
+      // Logo - Use the loaded image
+      if (logoData) {
+        try {
+          doc.addImage(logoData, 'JPEG', margin, 8, 20, 20);
+        } catch (error) {
+          console.log('Error adding logo to PDF:', error);
+          // Fallback
+          doc.setDrawColor(100);
+          doc.setLineWidth(1);
+          doc.rect(margin, 8, 20, 20);
+        }
+      } else {
+        // Fallback if logo failed to load
+        doc.setDrawColor(100);
+        doc.setLineWidth(1);
+        doc.rect(margin, 8, 20, 20);
+      }
 
       // Company information - better positioning
       doc.setFont('helvetica', 'bold');
