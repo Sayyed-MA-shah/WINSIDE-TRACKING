@@ -277,6 +277,166 @@ export const deductStockForInvoice = async (invoiceItems: any[]): Promise<{
   }
 };
 
+// Stock restoration function for invoice deletion/cancellation
+export const restoreStockForInvoice = async (invoiceItems: any[]): Promise<{
+  success: boolean;
+  errors: string[];
+  restorations: any[];
+}> => {
+  const errors: string[] = [];
+  const restorations: any[] = [];
+  
+  try {
+    console.log('🔄 Starting stock restoration process for', invoiceItems.length, 'items...');
+    
+    // Process each item for stock restoration
+    for (const item of invoiceItems) {
+      if (!item.variantId) continue; // Skip products without variants for now
+      
+      const product = await getProductById(item.productId);
+      if (!product) {
+        errors.push(`Product not found during restoration: ${item.productId}`);
+        continue;
+      }
+      
+      const variant = product.variants?.find((v: any) => v.id === item.variantId);
+      if (!variant) {
+        errors.push(`Variant not found during restoration: ${item.variantId}`);
+        continue;
+      }
+      
+      // Prepare the restoration operation
+      const restoration = {
+        productId: product.id,
+        variantId: variant.id,
+        currentQty: variant.qty,
+        restoreQty: item.quantity,
+        newQty: variant.qty + item.quantity,
+        productTitle: product.title,
+        variantSku: variant.sku
+      };
+      
+      restorations.push(restoration);
+    }
+    
+    console.log('📋 Prepared stock restorations:', restorations);
+    
+    // Execute restorations
+    for (const restoration of restorations) {
+      try {
+        const product = await getProductById(restoration.productId);
+        if (!product) {
+          throw new Error(`Product not found during restoration: ${restoration.productId}`);
+        }
+        
+        // Update the variant quantity in the product's variants array
+        const updatedVariants = product.variants.map((v: any) => {
+          if (v.id === restoration.variantId) {
+            return { ...v, qty: restoration.newQty };
+          }
+          return v;
+        });
+        
+        // Update the product with restored variant quantities
+        await updateProduct(restoration.productId, { variants: updatedVariants });
+        
+        console.log(`✅ Stock restored: ${restoration.productTitle} (${restoration.variantSku}) ${restoration.currentQty} → ${restoration.newQty}`);
+        
+      } catch (error) {
+        console.error('❌ Failed to restore stock:', error);
+        errors.push(`Failed to restore stock for ${restoration.productTitle} (${restoration.variantSku}): ${error}`);
+      }
+    }
+    
+    return {
+      success: errors.length === 0,
+      errors,
+      restorations: errors.length === 0 ? restorations : []
+    };
+    
+  } catch (error) {
+    console.error('Error in stock restoration process:', error);
+    return {
+      success: false,
+      errors: ['Stock restoration failed due to system error'],
+      restorations: []
+    };
+  }
+};
+
+// Manual restocking function for returns/adjustments
+export const manualRestockItems = async (restockItems: {
+  productId: string;
+  variantId?: string;
+  quantity: number;
+  reason: string;
+}[]): Promise<{
+  success: boolean;
+  errors: string[];
+  adjustments: any[];
+}> => {
+  const errors: string[] = [];
+  const adjustments: any[] = [];
+  
+  try {
+    console.log('🔄 Starting manual restock process for', restockItems.length, 'items...');
+    
+    for (const item of restockItems) {
+      const product = await getProductById(item.productId);
+      if (!product) {
+        errors.push(`Product not found: ${item.productId}`);
+        continue;
+      }
+      
+      if (item.variantId) {
+        const variant = product.variants?.find((v: any) => v.id === item.variantId);
+        if (!variant) {
+          errors.push(`Variant not found: ${item.variantId}`);
+          continue;
+        }
+        
+        const adjustment = {
+          productId: product.id,
+          variantId: variant.id,
+          currentQty: variant.qty,
+          adjustQty: item.quantity,
+          newQty: variant.qty + item.quantity,
+          productTitle: product.title,
+          variantSku: variant.sku,
+          reason: item.reason
+        };
+        
+        // Update the variant quantity
+        const updatedVariants = product.variants.map((v: any) => {
+          if (v.id === item.variantId) {
+            return { ...v, qty: adjustment.newQty };
+          }
+          return v;
+        });
+        
+        await updateProduct(item.productId, { variants: updatedVariants });
+        adjustments.push(adjustment);
+        
+        console.log(`✅ Manual restock: ${adjustment.productTitle} (${adjustment.variantSku}) ${adjustment.currentQty} → ${adjustment.newQty} (${adjustment.reason})`);
+      }
+    }
+    
+    return {
+      success: errors.length === 0,
+      errors,
+      adjustments
+    };
+    
+  } catch (error) {
+    console.error('Error in manual restock process:', error);
+    return {
+      success: false,
+      errors: ['Manual restock failed due to system error'],
+      adjustments: []
+    };
+  }
+};
+
 // Products functions
 export const getAllProducts = async (): Promise<Product[]> => {
   try {
@@ -961,6 +1121,26 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
 
 export const deleteInvoice = async (id: string): Promise<boolean> => {
   try {
+    // First get the invoice data to restore stock
+    console.log(`Fetching invoice data for stock restoration: ${id}`);
+    const { data: invoiceData, error: fetchError } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching invoice for stock restoration:', fetchError);
+      throw new Error('Failed to fetch invoice data for stock restoration');
+    }
+
+    if (invoiceData && invoiceData.products) {
+      // Restore stock before deleting the invoice
+      console.log(`Restoring stock for invoice ${id}...`);
+      await restoreStockForInvoice(invoiceData.products);
+    }
+    
+    // Then delete the invoice
     const { error } = await supabase
       .from('invoices')
       .delete()
@@ -971,6 +1151,7 @@ export const deleteInvoice = async (id: string): Promise<boolean> => {
       throw new Error('Failed to delete invoice');
     }
 
+    console.log(`Invoice ${id} deleted successfully with stock restored`);
     return true;
   } catch (error) {
     console.error('Error in deleteInvoice:', error);

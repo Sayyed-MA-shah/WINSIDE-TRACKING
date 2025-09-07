@@ -4,7 +4,17 @@ import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -20,9 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, AlertTriangle, Package, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, AlertTriangle, Package, TrendingDown, TrendingUp, Plus, Minus, Settings } from 'lucide-react';
 import { useProducts } from '@/lib/stores/productStore';
 import { Brand } from '@/lib/types';
+import { manualRestockItems } from '@/lib/db/shared-db';
 
 interface StockItem {
   id: string;
@@ -54,6 +65,13 @@ export default function StockPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<Brand | 'all'>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
+  
+  // Stock adjustment modal states
+  const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState<number>(0);
+  const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('add');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
 
   const stockData = useMemo(() => {
     const brandProducts = selectedBrand === 'all' ? products : getProductsByBrand(selectedBrand);
@@ -139,6 +157,43 @@ export default function StockPage() {
       return { status: 'Low Stock', variant: 'secondary' as const };
     }
     return { status: 'In Stock', variant: 'default' as const };
+  };
+
+  const handleStockAdjustment = async () => {
+    if (!selectedItem || adjustmentQuantity <= 0) return;
+
+    try {
+      const finalQuantity = adjustmentType === 'add' ? adjustmentQuantity : -adjustmentQuantity;
+      
+      const adjustmentItems = [{
+        productId: selectedItem.id,
+        variantId: selectedItem.id, // Using the same ID for simplicity
+        quantity: finalQuantity,
+        reason: adjustmentReason || `Manual ${adjustmentType === 'add' ? 'restock' : 'adjustment'}`
+      }];
+
+      const result = await manualRestockItems(adjustmentItems);
+      
+      if (result.success) {
+        // Refresh the page or update local state
+        window.location.reload();
+      } else {
+        alert(`Error: ${result.errors?.join(', ') || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Stock adjustment error:', error);
+      alert('Failed to adjust stock. Please try again.');
+    } finally {
+      setAdjustmentModalOpen(false);
+      setSelectedItem(null);
+      setAdjustmentQuantity(0);
+      setAdjustmentReason('');
+    }
+  };
+
+  const openAdjustmentModal = (item: StockItem) => {
+    setSelectedItem(item);
+    setAdjustmentModalOpen(true);
   };
 
   return (
@@ -264,12 +319,13 @@ export default function StockPage() {
                     <TableHead className="dark:text-gray-300">Wholesale Rev.</TableHead>
                     <TableHead className="dark:text-gray-300">Retail Rev.</TableHead>
                     <TableHead className="dark:text-gray-300">Club Rev.</TableHead>
+                    <TableHead className="dark:text-gray-300">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredStock.length === 0 ? (
                     <TableRow className="dark:border-gray-700">
-                      <TableCell colSpan={11} className="text-center py-8 dark:text-gray-400">
+                      <TableCell colSpan={12} className="text-center py-8 dark:text-gray-400">
                         <Package className="h-12 w-12 mx-auto text-gray-400 mb-2" />
                         <p>No stock items found.</p>
                       </TableCell>
@@ -316,6 +372,17 @@ export default function StockPage() {
                           <TableCell className="dark:text-gray-300 text-purple-600">
                             £{(item.qty * Math.max(0, item.club - item.costAfter)).toFixed(2)}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openAdjustmentModal(item)}
+                              className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              <Settings className="h-4 w-4 mr-1" />
+                              Adjust
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })
@@ -325,6 +392,97 @@ export default function StockPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Stock Adjustment Modal */}
+        <Dialog open={adjustmentModalOpen} onOpenChange={setAdjustmentModalOpen}>
+          <DialogContent className="dark:bg-gray-800 dark:border-gray-700">
+            <DialogHeader>
+              <DialogTitle className="dark:text-white">Adjust Stock Level</DialogTitle>
+              <DialogDescription className="dark:text-gray-400">
+                {selectedItem && (
+                  <>
+                    Adjusting stock for: <strong>{selectedItem.name}</strong> ({selectedItem.sku})
+                    <br />
+                    Current stock: <strong>{selectedItem.qty}</strong>
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium dark:text-gray-300">Adjustment Type</label>
+                  <Select value={adjustmentType} onValueChange={(value: 'add' | 'subtract') => setAdjustmentType(value)}>
+                    <SelectTrigger className="dark:bg-gray-700 dark:border-gray-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="add">
+                        <div className="flex items-center">
+                          <Plus className="h-4 w-4 mr-2 text-green-500" />
+                          Add Stock
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="subtract">
+                        <div className="flex items-center">
+                          <Minus className="h-4 w-4 mr-2 text-red-500" />
+                          Remove Stock
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium dark:text-gray-300">Quantity</label>
+                  <Input
+                    type="number"
+                    value={adjustmentQuantity}
+                    onChange={(e) => setAdjustmentQuantity(parseInt(e.target.value) || 0)}
+                    placeholder="Enter quantity..."
+                    className="dark:bg-gray-700 dark:border-gray-600"
+                    min="1"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium dark:text-gray-300">Reason (optional)</label>
+                <Input
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                  placeholder="e.g., Returned items, Damaged goods, etc."
+                  className="dark:bg-gray-700 dark:border-gray-600"
+                />
+              </div>
+              {selectedItem && (
+                <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded">
+                  <p className="text-sm dark:text-gray-300">
+                    <strong>Final stock level:</strong> {' '}
+                    {adjustmentType === 'add' 
+                      ? selectedItem.qty + adjustmentQuantity
+                      : Math.max(0, selectedItem.qty - adjustmentQuantity)
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setAdjustmentModalOpen(false)}
+                className="dark:border-gray-600 dark:text-gray-300"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleStockAdjustment}
+                disabled={adjustmentQuantity <= 0}
+                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+              >
+                {adjustmentType === 'add' ? 'Add Stock' : 'Remove Stock'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
