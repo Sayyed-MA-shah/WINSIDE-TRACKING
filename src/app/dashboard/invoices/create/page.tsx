@@ -233,7 +233,7 @@ export default function CreateInvoicePage() {
       // Load logo first
       let logoData = null;
       try {
-        const response = await fetch('/images/BrandSports-logo.jpg');
+        const response = await fetch('/images/BYKO-LOGO.png');
         const blob = await response.blob();
         logoData = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -268,7 +268,7 @@ export default function CreateInvoicePage() {
       // Logo - Use the loaded image
       if (logoData) {
         try {
-          doc.addImage(logoData, 'JPEG', margin, 8, 20, 20);
+          doc.addImage(logoData, 'PNG', margin, 8, 20, 20);
         } catch (error) {
           console.log('Error adding logo to PDF:', error);
           // Fallback
