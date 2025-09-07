@@ -250,19 +250,25 @@ export default function CreateInvoicePage() {
       doc.setFillColor(primaryColor);
       doc.rect(0, 0, pageWidth, 4, 'F');
 
-      // Logo placeholder
-      doc.setDrawColor(lightGray);
-      doc.setLineWidth(0.5);
-      doc.rect(margin, 8, 20, 20);
-      doc.setFontSize(8);
-      doc.setTextColor(mediumGray);
-      doc.text('LOGO', margin + 8, 20);
+      // Logo
+      try {
+        // Try to add the logo image
+        doc.addImage('/data/BrandSports-logo.jpg', 'JPEG', margin, 8, 20, 20);
+      } catch (error) {
+        // Fallback to logo placeholder if image fails
+        doc.setDrawColor(lightGray);
+        doc.setLineWidth(0.5);
+        doc.rect(margin, 8, 20, 20);
+        doc.setFontSize(8);
+        doc.setTextColor(mediumGray);
+        doc.text('LOGO', margin + 8, 20);
+      }
 
       // Company information - better positioning
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.setTextColor(darkGray);
-      doc.text('WINSIDE LTD', margin + 25, 16);
+      doc.text('BYKO SPORTS', margin + 25, 16);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -531,7 +537,7 @@ export default function CreateInvoicePage() {
       doc.text('Thank you for your business.', 105, footerY + 8, { align: 'center' });
 
       doc.setFontSize(7);
-      doc.text('WINSIDE LTD • Registered in England & Wales • Company No: 12345678 • VAT No: GB123456789', 105, footerY + 15, { align: 'center' });
+      doc.text('BYKO SPORTS • Registered in England & Wales • Company No: 12345678 • VAT No: GB123456789', 105, footerY + 15, { align: 'center' });
       doc.text('Registered Office: Nortex Business Center, BL1 3AS, Bolton, United Kingdom', 105, footerY + 22, { align: 'center' });
 
       // Save the PDF

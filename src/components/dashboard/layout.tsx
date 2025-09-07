@@ -19,8 +19,7 @@ import {
   LogOut,
   Shield,
   User,
-  Database,
-  Tag
+  Database
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -37,11 +36,6 @@ const navigation = [
     name: 'Articles',
     href: '/dashboard/products',
     icon: Package,
-  },
-  {
-    name: 'Categories',
-    href: '/dashboard/categories',
-    icon: Tag,
   },
   {
     name: 'Stock',
@@ -112,9 +106,9 @@ export function DashboardLayout({ children }: SidebarProps) {
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">W</span>
+                <span className="text-white font-bold text-sm">B</span>
               </div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">WINSIDE</h1>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">BYKO SPORTS</h1>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />

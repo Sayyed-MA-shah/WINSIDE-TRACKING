@@ -21,6 +21,10 @@ export async function createBackup(): Promise<{
       throw new Error('Missing required Supabase environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
     }
 
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - this operation must be run server-side');
+    }
+
     // Read all customers
     const { data: customers, error: customersError } = await supabaseAdmin
       .from('customers')
@@ -105,6 +109,10 @@ export async function restoreFromBackup(backupData: {
   try {
     console.log('🔄 Starting safe restore process...');
     console.log('⚠️  SAFE MODE: Only adding new data or updating existing. No deletions.');
+
+    if (!supabaseAdmin) {
+      throw new Error('Supabase admin client not available - this operation must be run server-side');
+    }
 
     const summary = {
       customersProcessed: 0,

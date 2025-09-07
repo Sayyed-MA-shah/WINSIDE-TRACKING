@@ -96,7 +96,7 @@ export default function AuthPage() {
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
             <span className="text-white font-bold text-2xl">W</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">WINSIDE</h1>
+          <h1 className="text-3xl font-bold text-gray-900">BYKO SPORTS</h1>
           <p className="text-gray-600 mt-2">Access your business dashboard</p>
         </div>
 
@@ -282,7 +282,7 @@ export default function AuthPage() {
         </Card>
 
         <div className="text-center mt-8 text-sm text-gray-600">
-          <p>© 2025 WINSIDE Business Solutions. All rights reserved.</p>
+          <p>© 2025 BYKO SPORTS Business Solutions. All rights reserved.</p>
         </div>
       </div>
     </div>

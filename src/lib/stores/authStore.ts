@@ -40,7 +40,7 @@ const defaultUsers: User[] = [
   {
     id: 'admin-1',
     email: 'admin@admin.com',
-    name: 'WINSIDE Admin',
+    name: 'BYKO SPORTS Admin',
     role: 'admin',
     status: 'approved',
     createdAt: new Date('2024-01-01'),

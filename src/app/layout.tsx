@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WINSIDE Business Dashboard",
-  description: "WINSIDE - Complete business management solution for inventory, customers, and sales",
+  title: "BYKO SPORTS Business Dashboard",
+  description: "BYKO SPORTS - Complete business management solution for inventory, customers, and sales",
 };
 
 export default function RootLayout({
