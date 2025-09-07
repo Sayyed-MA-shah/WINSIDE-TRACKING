@@ -151,7 +151,7 @@ export default function InvoicesPage() {
       doc.setTextColor(mediumGray);
       doc.text('Nortex Business Center, BL1 3AS', margin + 25, 21);
       doc.text('Bolton, United Kingdom', margin + 25, 25);
-      doc.text('+44 7749 149712', margin + 25, 25);
+      doc.text('+44 7749 149712', margin + 30, 30);
 
       // Invoice title
       doc.setFont('helvetica', 'bold');
