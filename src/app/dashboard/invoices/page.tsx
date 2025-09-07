@@ -152,19 +152,18 @@ export default function InvoicesPage() {
       doc.setFillColor(primaryColor);
       doc.rect(0, 0, pageWidth, 4, 'F');
 
-      // Logo
-      try {
-        // Try to add the logo image
-        doc.addImage('/data/BrandSports-logo.jpg', 'JPEG', margin, 8, 20, 20);
-      } catch (error) {
-        // Fallback to logo placeholder if image fails
-        doc.setDrawColor(lightGray);
-        doc.setLineWidth(0.5);
-        doc.rect(margin, 8, 20, 20);
-        doc.setFontSize(8);
-        doc.setTextColor(mediumGray);
-        doc.text('LOGO', margin + 8, 20);
-      }
+      // Logo Area - Styled Text Logo
+      doc.setDrawColor(primaryColor);
+      doc.setLineWidth(2);
+      doc.rect(margin, 8, 20, 20);
+      
+      // Company Logo Text
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(primaryColor);
+      doc.text('BYKO', margin + 3, 18);
+      doc.setFontSize(10);
+      doc.text('SPORTS', margin + 2, 24);
 
       // Company info
       doc.setFont('helvetica', 'bold');
