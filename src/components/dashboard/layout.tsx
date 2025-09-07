@@ -19,7 +19,8 @@ import {
   LogOut,
   Shield,
   User,
-  Database
+  Database,
+  Tag
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +37,11 @@ const navigation = [
     name: 'Articles',
     href: '/dashboard/products',
     icon: Package,
+  },
+  {
+    name: 'Categories',
+    href: '/dashboard/categories',
+    icon: Tag,
   },
   {
     name: 'Stock',

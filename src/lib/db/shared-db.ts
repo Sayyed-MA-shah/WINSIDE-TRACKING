@@ -811,17 +811,23 @@ export const addInvoice = async (invoice: any): Promise<any> => {
 
     console.log('DB: Invoice created successfully:', data);
 
-    // TODO: SAFETY STEP 2: Implement stock deduction here (currently disabled for safety)
-    // const stockDeduction = await deductStockForInvoice(invoice.items || []);
-    // if (!stockDeduction.success) {
-    //   // Rollback invoice creation if stock deduction fails
-    //   console.error('❌ Stock deduction failed, rolling back invoice...');
-    //   await supabase.from('invoices').delete().eq('id', data.id);
-    //   throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
-    // }
+    // STEP 2: Perform stock deduction now that invoice is created
+    console.log('🔄 ENABLED: Processing stock deduction for invoice items...');
+    const stockDeduction = await deductStockForInvoice(invoice.items || []);
+    if (!stockDeduction.success) {
+      // Rollback invoice creation if stock deduction fails
+      console.error('❌ Stock deduction failed, rolling back invoice...');
+      try {
+        await supabase.from('invoices').delete().eq('id', data.id);
+        console.log('✅ Invoice rollback completed');
+      } catch (rollbackError) {
+        console.error('❌ CRITICAL: Invoice rollback failed:', rollbackError);
+      }
+      throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
+    }
     
-    console.log('⚠️ NOTE: Stock deduction is currently DISABLED for safety testing');
-    console.log('💡 Stock validation passed, invoice created, but quantities NOT yet deducted');
+    console.log('✅ SUCCESS: Stock deduction completed successfully');
+    console.log('� Deducted stock for', stockDeduction.deductions.length, 'items');
 
     return {
       id: data.id,
