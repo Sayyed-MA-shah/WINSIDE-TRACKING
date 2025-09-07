@@ -294,7 +294,7 @@ export default function CreateInvoicePage() {
       doc.setTextColor(mediumGray);
       doc.text('Nortex Business Center, BL1 3AS', margin + 25, 21);
       doc.text('Bolton, United Kingdom', margin + 25, 25);
-      doc.text('+44 7749 149712', margin + 25, 25);
+      
       // Invoice title and metadata (RIGHT SIDE) - better positioned
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
@@ -556,7 +556,7 @@ export default function CreateInvoicePage() {
       doc.text('Thank you for your business.', 105, footerY + 8, { align: 'center' });
 
       doc.setFontSize(7);
-      doc.text('BYKO SPORTS • Registered in England & Wales • Company No: 14466562 • ☎ +44 7749 149712 ', 105, footerY + 15, { align: 'center' });
+      doc.text('BYKO SPORTS • Registered in England & Wales • Company No: 14466562 ', 105, footerY + 15, { align: 'center' });
       doc.text('Registered Office: Nortex Business Center, BL1 3AS, Bolton, United Kingdom', 105, footerY + 22, { align: 'center' });
 
       // Save the PDF

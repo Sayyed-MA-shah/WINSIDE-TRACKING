@@ -389,7 +389,7 @@ export default function InvoicesPage() {
       doc.text('Thank you for your business.', 105, footerY + 8, { align: 'center' });
 
       doc.setFontSize(7);
-      doc.text('BYKO SPORTS • Registered in England & Wales • Company No: 12345678 • ☎ +44 7749 149712', 105, footerY + 15, { align: 'center' });
+      doc.text('BYKO SPORTS • Registered in England & Wales • Company No: 12345678 ', 105, footerY + 15, { align: 'center' });
       doc.text('Registered Office: Nortex Business Center, BL1 3AS, Bolton, United Kingdom', 105, footerY + 22, { align: 'center' });
 
       doc.save(`invoice-${invoiceNumber}.pdf`);
