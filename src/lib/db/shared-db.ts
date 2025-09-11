@@ -493,8 +493,8 @@ export const addProduct = async (product: any): Promise<any> => {
       retail: product.retail,
       club: product.club,
       cost_before: product.costBefore,
-      cost_after: product.costAfter,
-      variants: product.variants || []
+      cost_after: product.costAfter
+      // REMOVED: variants: product.variants || [] - this field doesn't exist in products table
     };
 
     console.log('DB: Transformed product data:', JSON.stringify(productData, null, 2));
@@ -528,7 +528,7 @@ export const addProduct = async (product: any): Promise<any> => {
       club: data.club,
       costBefore: data.cost_before,
       costAfter: data.cost_after,
-      variants: data.variants || [],
+      variants: [], // Empty array since variants are stored in separate table
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
