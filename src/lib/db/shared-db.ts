@@ -440,18 +440,34 @@ export const manualRestockItems = async (restockItems: {
 // Products functions
 export const getAllProducts = async (): Promise<Product[]> => {
   try {
-    const { data, error } = await supabase
+    // Fetch products with their variants from separate table
+    const { data: productsData, error: productsError } = await supabase
       .from('products')
-      .select('*')
+      .select(`
+        *,
+        variants (
+          id,
+          sku,
+          attributes,
+          qty,
+          wholesale,
+          retail,
+          club,
+          cost_before,
+          cost_after,
+          created_at,
+          updated_at
+        )
+      `)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching products:', error);
+    if (productsError) {
+      console.error('Error fetching products:', productsError);
       return [];
     }
 
     // Transform database response to match Product interface
-    return (data || []).map(product => ({
+    return (productsData || []).map(product => ({
       id: product.id,
       article: product.article,
       title: product.title,
@@ -466,7 +482,18 @@ export const getAllProducts = async (): Promise<Product[]> => {
       club: product.club,
       costBefore: product.cost_before,
       costAfter: product.cost_after,
-      variants: product.variants || [],
+      variants: (product.variants || []).map((variant: any) => ({
+        id: variant.id,
+        productId: product.id,
+        sku: variant.sku,
+        attributes: variant.attributes || {},
+        qty: variant.qty || 0,
+        wholesale: variant.wholesale,
+        retail: variant.retail,
+        club: variant.club,
+        costBefore: variant.cost_before,
+        costAfter: variant.cost_after
+      })),
       createdAt: new Date(product.created_at),
       updatedAt: new Date(product.updated_at)
     }));
@@ -513,6 +540,50 @@ export const addProduct = async (product: any): Promise<any> => {
 
     console.log('DB: Product inserted successfully:', data);
 
+    // Now insert variants into the separate variants table
+    let insertedVariants: any[] = [];
+    if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+      console.log('DB: Inserting variants:', product.variants.length);
+      
+      const variantsData = product.variants.map((variant: any) => ({
+        id: variant.id,
+        product_id: data.id,
+        sku: variant.sku,
+        attributes: variant.attributes || {},
+        qty: variant.qty || 0,
+        wholesale: variant.wholesale,
+        retail: variant.retail,
+        club: variant.club,
+        cost_before: variant.costBefore,
+        cost_after: variant.costAfter
+      }));
+
+      const { data: variantsResult, error: variantsError } = await supabase
+        .from('variants')
+        .insert(variantsData)
+        .select();
+
+      if (variantsError) {
+        console.error('DB: Error inserting variants:', variantsError);
+        // Don't throw here - we want to keep the product even if variants fail
+        console.log('DB: Product created but variants failed - this can be fixed later');
+      } else {
+        console.log('DB: Variants inserted successfully:', variantsResult);
+        insertedVariants = (variantsResult || []).map((variant: any) => ({
+          id: variant.id,
+          productId: variant.product_id,
+          sku: variant.sku,
+          attributes: variant.attributes || {},
+          qty: variant.qty || 0,
+          wholesale: variant.wholesale,
+          retail: variant.retail,
+          club: variant.club,
+          costBefore: variant.cost_before,
+          costAfter: variant.cost_after
+        }));
+      }
+    }
+
     return {
       id: data.id,
       article: data.article,
@@ -528,7 +599,7 @@ export const addProduct = async (product: any): Promise<any> => {
       club: data.club,
       costBefore: data.cost_before,
       costAfter: data.cost_after,
-      variants: [], // Empty array since variants are stored in separate table
+      variants: insertedVariants, // Return the actual inserted variants
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
@@ -556,7 +627,7 @@ export const updateProduct = async (id: string, updates: any): Promise<any> => {
     if (updates.club !== undefined) updateData.club = updates.club;
     if (updates.costBefore !== undefined) updateData.cost_before = updates.costBefore;
     if (updates.costAfter !== undefined) updateData.cost_after = updates.costAfter;
-    if (updates.variants !== undefined) updateData.variants = updates.variants;
+    // REMOVED: variants handling from products table
 
     const { data, error } = await supabase
       .from('products')
@@ -568,6 +639,79 @@ export const updateProduct = async (id: string, updates: any): Promise<any> => {
     if (error) {
       console.error('Error updating product:', error);
       throw new Error('Failed to update product');
+    }
+
+    // Handle variants separately if they are provided
+    let updatedVariants: any[] = [];
+    if (updates.variants !== undefined && Array.isArray(updates.variants)) {
+      console.log('DB: Updating variants for product:', id);
+      
+      // First, delete existing variants for this product
+      const { error: deleteError } = await supabase
+        .from('variants')
+        .delete()
+        .eq('product_id', id);
+
+      if (deleteError) {
+        console.error('DB: Error deleting existing variants:', deleteError);
+      }
+
+      // Then insert the new variants
+      if (updates.variants.length > 0) {
+        const variantsData = updates.variants.map((variant: any) => ({
+          id: variant.id,
+          product_id: id,
+          sku: variant.sku,
+          attributes: variant.attributes || {},
+          qty: variant.qty || 0,
+          wholesale: variant.wholesale,
+          retail: variant.retail,
+          club: variant.club,
+          cost_before: variant.costBefore,
+          cost_after: variant.costAfter
+        }));
+
+        const { data: variantsResult, error: variantsError } = await supabase
+          .from('variants')
+          .insert(variantsData)
+          .select();
+
+        if (variantsError) {
+          console.error('DB: Error updating variants:', variantsError);
+        } else {
+          updatedVariants = (variantsResult || []).map((variant: any) => ({
+            id: variant.id,
+            productId: variant.product_id,
+            sku: variant.sku,
+            attributes: variant.attributes || {},
+            qty: variant.qty || 0,
+            wholesale: variant.wholesale,
+            retail: variant.retail,
+            club: variant.club,
+            costBefore: variant.cost_before,
+            costAfter: variant.cost_after
+          }));
+        }
+      }
+    } else {
+      // If variants weren't updated, fetch existing ones
+      const { data: existingVariants } = await supabase
+        .from('variants')
+        .select('*')
+        .eq('product_id', id);
+
+      updatedVariants = (existingVariants || []).map((variant: any) => ({
+        id: variant.id,
+        productId: variant.product_id,
+        sku: variant.sku,
+        attributes: variant.attributes || {},
+        qty: variant.qty || 0,
+        wholesale: variant.wholesale,
+        retail: variant.retail,
+        club: variant.club,
+        costBefore: variant.cost_before,
+        costAfter: variant.cost_after
+      }));
     }
 
     return {
@@ -585,7 +729,7 @@ export const updateProduct = async (id: string, updates: any): Promise<any> => {
       club: data.club,
       costBefore: data.cost_before,
       costAfter: data.cost_after,
-      variants: data.variants || [],
+      variants: updatedVariants,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };
@@ -618,7 +762,22 @@ export const getProductById = async (id: string): Promise<any | null> => {
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('*')
+      .select(`
+        *,
+        variants (
+          id,
+          sku,
+          attributes,
+          qty,
+          wholesale,
+          retail,
+          club,
+          cost_before,
+          cost_after,
+          created_at,
+          updated_at
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -643,7 +802,18 @@ export const getProductById = async (id: string): Promise<any | null> => {
       club: data.club,
       costBefore: data.cost_before,
       costAfter: data.cost_after,
-      variants: data.variants || [],
+      variants: (data.variants || []).map((variant: any) => ({
+        id: variant.id,
+        productId: data.id,
+        sku: variant.sku,
+        attributes: variant.attributes || {},
+        qty: variant.qty || 0,
+        wholesale: variant.wholesale,
+        retail: variant.retail,
+        club: variant.club,
+        costBefore: variant.cost_before,
+        costAfter: variant.cost_after
+      })),
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at)
     };

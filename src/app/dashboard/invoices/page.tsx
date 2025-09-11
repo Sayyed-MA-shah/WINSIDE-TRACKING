@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Plus, FileText, DollarSign, Clock, CheckCircle, Edit, Eye, Printer, Trash2 } from 'lucide-react';
+import { Search, Plus, FileText, DollarSign, Clock, CheckCircle, Edit, Eye, Printer, Trash2, Package } from 'lucide-react';
 import { Invoice, Customer, Product } from '@/lib/types';
 
 export default function InvoicesPage() {
@@ -123,6 +123,13 @@ export default function InvoicesPage() {
     setViewingInvoice(invoice);
     setIsDialogOpen(true);
   };
+
+  // Packing slip dialog state
+  const [isPackingDialogOpen, setIsPackingDialogOpen] = useState(false);
+  const [packingInvoice, setPackingInvoice] = useState<Invoice | null>(null);
+  const [boxCount, setBoxCount] = useState<number>(1);
+  const [autoSplit, setAutoSplit] = useState<boolean>(true);
+  const [includeMaster, setIncludeMaster] = useState<boolean>(true);
 
   const handleEditInvoice = (invoice: Invoice) => {
     router.push(`/dashboard/invoices/edit/${invoice.id}`);
@@ -400,6 +407,141 @@ export default function InvoicesPage() {
     }
   };
 
+  const openPackingDialog = (invoice: Invoice) => {
+    setPackingInvoice(invoice);
+    setBoxCount(1);
+    setAutoSplit(true);
+    setIncludeMaster(true);
+    setIsPackingDialogOpen(true);
+  };
+
+  const generatePackingSlips = async (invoice: Invoice, boxes: number, options: { autoSplit: boolean; includeMaster: boolean }) => {
+    try {
+      const jsPDF = (await import('jspdf')).default;
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      // load logo (best-effort)
+      let logoData = null;
+      try {
+        const res = await fetch('/images/BYKO-LOGO.png');
+        const blob = await res.blob();
+        logoData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        // ignore
+      }
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const margin = 8;
+
+      // Helper to draw header for packing slips
+      const drawHeader = (boxLabel?: string) => {
+        const primaryColor = '#0F62FE';
+        const darkGray = '#1A1D21';
+        doc.setFillColor(primaryColor);
+        doc.rect(0, 0, pageWidth, 4, 'F');
+
+        if (logoData) {
+          try { doc.addImage(logoData, 'PNG', margin, 8, 20, 20); } catch (e) { /* ignore */ }
+        } else {
+          doc.setDrawColor(200); doc.rect(margin, 8, 20, 20);
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(darkGray);
+        doc.text('BYKO SPORTS', margin + 25, 16);
+
+        doc.setFontSize(16);
+        doc.text(boxLabel ? 'PACKING SLIP' : 'PACKING LIST', pageWidth - 60, 18);
+      };
+
+      // Build per-box item groups
+      const productMap = new Map<string, any>();
+      invoice.items.forEach(item => {
+        productMap.set(item.productId, (productMap.get(item.productId) || 0) + item.quantity);
+      });
+
+      // Expand units if autoSplit to distribute across boxes
+      const unitEntries: { productId: string }[] = [];
+      productMap.forEach((qty, productId) => {
+        for (let i = 0; i < qty; i++) unitEntries.push({ productId });
+      });
+
+      const boxesData: Record<number, { [productId: string]: number }> = {};
+      for (let i = 1; i <= boxes; i++) boxesData[i] = {};
+
+      if (options.autoSplit && unitEntries.length > 0) {
+        // round-robin distribute single units
+        unitEntries.forEach((entry, idx) => {
+          const boxNum = (idx % boxes) + 1;
+          boxesData[boxNum][entry.productId] = (boxesData[boxNum][entry.productId] || 0) + 1;
+        });
+      } else {
+        // put full lines into box 1 by default
+        invoice.items.forEach(item => {
+          boxesData[1][item.productId] = (boxesData[1][item.productId] || 0) + item.quantity;
+        });
+      }
+
+      // Optional master list first
+      if (options.includeMaster) {
+        drawHeader();
+        doc.setFontSize(9);
+        doc.text(`Invoice: ${invoice.invoiceNumber}`, margin, 36);
+        doc.text(`Customer: ${invoice.customer?.name || ''}`, margin, 42);
+
+        const masterBody = Array.from(productMap.entries()).map(([productId, qty], idx) => {
+          const product = products.find(p => p.id === productId);
+          return [ (idx + 1).toString(), product?.title || 'Unknown', product?.article || '-', qty.toString() ];
+        });
+
+        autoTable(doc, {
+          startY: 48,
+          head: [['#', 'Item / Description', 'SKU', 'Qty']],
+          body: masterBody,
+          styles: { fontSize: 9 },
+          margin: { left: margin, right: margin }
+        });
+        doc.addPage();
+      }
+
+      // Per-box pages
+      for (let b = 1; b <= boxes; b++) {
+        drawHeader(`BOX ${b} of ${boxes}`);
+        doc.setFontSize(9);
+        doc.text(`Invoice: ${invoice.invoiceNumber}`, margin, 36);
+        doc.text(`Box: ${b} of ${boxes}`, margin, 42);
+        doc.text(`Customer: ${invoice.customer?.name || ''}`, margin, 48);
+
+        const body = Object.entries(boxesData[b]).map(([productId, qty], idx) => {
+          const product = products.find(p => p.id === productId);
+          return [ (idx + 1).toString(), product?.title || 'Unknown', product?.article || '-', qty.toString() ];
+        });
+
+        autoTable(doc, {
+          startY: 56,
+          head: [['#', 'Item / Description', 'SKU', 'Qty']],
+          body,
+          styles: { fontSize: 9 },
+          margin: { left: margin, right: margin }
+        });
+
+        if (b < boxes) doc.addPage();
+      }
+
+      doc.save(`packing-slip-${invoice.invoiceNumber}.pdf`);
+    } catch (error) {
+      console.error('Error generating packing slips:', error);
+      alert('Error generating packing slips.');
+    }
+  };
+
   const handleDeleteInvoice = async (invoice: Invoice) => {
     if (window.confirm(`Are you sure you want to delete invoice ${invoice.invoiceNumber}? This action cannot be undone.`)) {
       try {
@@ -613,6 +755,14 @@ export default function InvoicesPage() {
                               >
                                 <Printer className="h-4 w-4" />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openPackingDialog(invoice)}
+                                title="Generate Packing Slip"
+                              >
+                                <Package className="h-4 w-4" />
+                              </Button>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -705,6 +855,49 @@ export default function InvoicesPage() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+          {/* Packing Slip Dialog */}
+          <Dialog open={isPackingDialogOpen} onOpenChange={setIsPackingDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Generate Packing Slips</DialogTitle>
+                <DialogDescription>
+                  Configure how items should be split across boxes and include an optional master list.
+                </DialogDescription>
+              </DialogHeader>
+              {packingInvoice && (
+                <div className="space-y-4">
+                  <div>
+                    <p><strong>Invoice:</strong> {packingInvoice.invoiceNumber}</p>
+                    <p><strong>Customer:</strong> {packingInvoice.customer?.name}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <label className="text-sm">Box count</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={boxCount}
+                      onChange={(e) => setBoxCount(Number(e.target.value))}
+                      className="w-full border rounded px-2 py-1"
+                    />
+                    <label className="text-sm">Auto split units</label>
+                    <input type="checkbox" checked={autoSplit} onChange={(e) => setAutoSplit(e.target.checked)} />
+                    <label className="text-sm">Include master list</label>
+                    <input type="checkbox" checked={includeMaster} onChange={(e) => setIncludeMaster(e.target.checked)} />
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="secondary" onClick={() => setIsPackingDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={() => {
+                      setIsPackingDialogOpen(false);
+                      // generate
+                      generatePackingSlips(packingInvoice, Math.max(1, boxCount), { autoSplit, includeMaster });
+                    }}>Generate PDF</Button>
                   </div>
                 </div>
               )}
