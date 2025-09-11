@@ -306,19 +306,24 @@ export default function ProductVariantModal({
   const generateVariants = () => {
     if (formData.attributes.length === 0) return;
     
-    const newVariants = generateVariantCombinations(
+    // Generate ALL possible combinations
+    const allPossibleVariants = generateVariantCombinations(
       formData.article,
       formData.attributes,
       formData.attributeValues,
       defaultValues.qty
     );
     
-    // Merge with existing variants to preserve user edits
-    const mergedVariants = mergeVariants(formData.variants, newVariants);
+    // Find which variants are NEW (don't exist yet)
+    const existingSKUs = new Set(formData.variants.map(v => v.sku));
+    const newVariants = allPossibleVariants.filter(variant => 
+      !existingSKUs.has(variant.sku)
+    );
     
+    // Add only the NEW variants to existing ones (additive approach)
     setFormData(prev => ({
       ...prev,
-      variants: mergedVariants
+      variants: [...prev.variants, ...newVariants]
     }));
   };
 
@@ -817,7 +822,7 @@ function AttributesStep({
             onClick={onGenerateVariants}
             className="px-6 py-3 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
           >
-            Generate Variants
+            Add New Variants
           </button>
         </div>
       )}
@@ -852,7 +857,7 @@ function VariantsStep({
           onClick={onGenerateVariants}
           className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30"
         >
-          Re-generate Variants
+          Add New Variants
         </button>
       </div>
       
@@ -1075,7 +1080,7 @@ function VariantsStep({
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          No variants generated yet. Go back to Attributes step and click "Generate Variants".
+          No variants generated yet. Go back to Attributes step and click "Add New Variants".
         </div>
       )}
     </div>
