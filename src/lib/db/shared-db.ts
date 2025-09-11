@@ -478,6 +478,8 @@ export const getAllProducts = async (): Promise<Product[]> => {
 
 export const addProduct = async (product: any): Promise<any> => {
   try {
+    console.log('DB: Starting addProduct with data:', JSON.stringify(product, null, 2));
+    
     const productData = {
       article: product.article,
       title: product.title,
@@ -495,6 +497,8 @@ export const addProduct = async (product: any): Promise<any> => {
       variants: product.variants || []
     };
 
+    console.log('DB: Transformed product data:', JSON.stringify(productData, null, 2));
+
     const { data, error } = await supabase
       .from('products')
       .insert(productData)
@@ -502,9 +506,12 @@ export const addProduct = async (product: any): Promise<any> => {
       .single();
 
     if (error) {
-      console.error('Error adding product:', error);
-      throw new Error('Failed to add product');
+      console.error('DB: Supabase error adding product:', error);
+      console.error('DB: Error details:', JSON.stringify(error, null, 2));
+      throw new Error(`Database error: ${error.message}`);
     }
+
+    console.log('DB: Product inserted successfully:', data);
 
     return {
       id: data.id,
@@ -526,7 +533,8 @@ export const addProduct = async (product: any): Promise<any> => {
       updatedAt: new Date(data.updated_at)
     };
   } catch (error) {
-    console.error('Error in addProduct:', error);
+    console.error('DB: Error in addProduct:', error);
+    console.error('DB: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     throw error;
   }
 };

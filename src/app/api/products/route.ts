@@ -17,8 +17,30 @@ export async function POST(request: NextRequest) {
   try {
     console.log('API: Attempting to create product...');
     const data = await request.json();
-    console.log('API: Product data:', data);
+    console.log('API: Product data received:', JSON.stringify(data, null, 2));
     
+    // Validate required fields
+    if (!data.article) {
+      console.error('API: Missing required field: article');
+      return NextResponse.json({ error: 'Article is required' }, { status: 400 });
+    }
+    
+    if (!data.title) {
+      console.error('API: Missing required field: title');
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    }
+    
+    if (!data.category) {
+      console.error('API: Missing required field: category');
+      return NextResponse.json({ error: 'Category is required' }, { status: 400 });
+    }
+    
+    if (!data.brand) {
+      console.error('API: Missing required field: brand');
+      return NextResponse.json({ error: 'Brand is required' }, { status: 400 });
+    }
+    
+    console.log('API: All required fields present, calling addProduct...');
     const product = await addProduct(data);
     
     if (!product) {
@@ -30,6 +52,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
     console.error('API: Error creating product:', error);
-    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    console.error('API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    return NextResponse.json({ 
+      error: 'Failed to create product',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
