@@ -440,23 +440,9 @@ export const manualRestockItems = async (restockItems: {
 // Products functions
 export const getAllProducts = async (): Promise<Product[]> => {
   try {
-    // Fetch products with their variants using a join
     const { data, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        variants (
-          id,
-          sku,
-          attributes,
-          qty,
-          wholesale,
-          retail,
-          club,
-          cost_before,
-          cost_after
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -480,18 +466,7 @@ export const getAllProducts = async (): Promise<Product[]> => {
       club: product.club,
       costBefore: product.cost_before,
       costAfter: product.cost_after,
-      variants: (product.variants || []).map((v: any) => ({
-        id: v.id,
-        productId: product.id,
-        sku: v.sku,
-        attributes: v.attributes || {},
-        qty: v.qty || 0,
-        wholesale: v.wholesale,
-        retail: v.retail,
-        club: v.club,
-        costBefore: v.cost_before,
-        costAfter: v.cost_after
-      })),
+      variants: product.variants || [],
       createdAt: new Date(product.created_at),
       updatedAt: new Date(product.updated_at)
     }));
@@ -505,7 +480,6 @@ export const addProduct = async (product: any): Promise<any> => {
   try {
     console.log('DB: Starting addProduct with data:', JSON.stringify(product, null, 2));
     
-    // Prepare product data (without variants)
     const productData = {
       article: product.article,
       title: product.title,
@@ -519,89 +493,44 @@ export const addProduct = async (product: any): Promise<any> => {
       retail: product.retail,
       club: product.club,
       cost_before: product.costBefore,
-      cost_after: product.costAfter
+      cost_after: product.costAfter,
+      variants: product.variants || []
     };
 
     console.log('DB: Transformed product data:', JSON.stringify(productData, null, 2));
 
-    // Insert the product first
-    const { data: insertedProduct, error: productError } = await supabase
+    const { data, error } = await supabase
       .from('products')
       .insert(productData)
       .select()
       .single();
 
-    if (productError) {
-      console.error('DB: Supabase error adding product:', productError);
-      console.error('DB: Error details:', JSON.stringify(productError, null, 2));
-      throw new Error(`Database error: ${productError.message}`);
+    if (error) {
+      console.error('DB: Supabase error adding product:', error);
+      console.error('DB: Error details:', JSON.stringify(error, null, 2));
+      throw new Error(`Database error: ${error.message}`);
     }
 
-    console.log('DB: Product inserted successfully:', insertedProduct);
+    console.log('DB: Product inserted successfully:', data);
 
-    // Now insert variants if they exist
-    let insertedVariants: any[] = [];
-    if (product.variants && product.variants.length > 0) {
-      console.log('DB: Inserting variants:', product.variants.length);
-      
-      const variantData = product.variants.map((variant: any) => ({
-        id: variant.id,
-        product_id: insertedProduct.id,
-        sku: variant.sku,
-        attributes: variant.attributes || {},
-        qty: variant.qty || 0,
-        wholesale: variant.wholesale,
-        retail: variant.retail,
-        club: variant.club,
-        cost_before: variant.costBefore,
-        cost_after: variant.costAfter
-      }));
-
-      const { data: variants, error: variantError } = await supabase
-        .from('variants')
-        .insert(variantData)
-        .select();
-
-      if (variantError) {
-        console.error('DB: Error inserting variants:', variantError);
-        // Don't fail the entire operation if variants fail
-        console.warn('DB: Product created but variants failed to insert');
-      } else {
-        insertedVariants = variants || [];
-        console.log('DB: Variants inserted successfully:', insertedVariants.length);
-      }
-    }
-
-    // Return the complete product with variants
     return {
-      id: insertedProduct.id,
-      article: insertedProduct.article,
-      title: insertedProduct.title,
-      category: insertedProduct.category,
-      brand: insertedProduct.brand,
-      taxable: insertedProduct.taxable,
-      attributes: insertedProduct.attributes || [],
-      mediaMain: insertedProduct.media_main,
-      archived: insertedProduct.archived,
-      wholesale: insertedProduct.wholesale,
-      retail: insertedProduct.retail,
-      club: insertedProduct.club,
-      costBefore: insertedProduct.cost_before,
-      costAfter: insertedProduct.cost_after,
-      variants: insertedVariants.map((v: any) => ({
-        id: v.id,
-        productId: v.product_id,
-        sku: v.sku,
-        attributes: v.attributes,
-        qty: v.qty,
-        wholesale: v.wholesale,
-        retail: v.retail,
-        club: v.club,
-        costBefore: v.cost_before,
-        costAfter: v.cost_after
-      })),
-      createdAt: new Date(insertedProduct.created_at),
-      updatedAt: new Date(insertedProduct.updated_at)
+      id: data.id,
+      article: data.article,
+      title: data.title,
+      category: data.category,
+      brand: data.brand,
+      taxable: data.taxable,
+      attributes: data.attributes || [],
+      mediaMain: data.media_main,
+      archived: data.archived,
+      wholesale: data.wholesale,
+      retail: data.retail,
+      club: data.club,
+      costBefore: data.cost_before,
+      costAfter: data.cost_after,
+      variants: data.variants || [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at)
     };
   } catch (error) {
     console.error('DB: Error in addProduct:', error);
