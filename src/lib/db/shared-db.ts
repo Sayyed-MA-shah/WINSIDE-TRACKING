@@ -979,23 +979,27 @@ export const addInvoice = async (invoice: any): Promise<any> => {
 
     console.log('DB: Invoice created successfully:', data);
 
-    // STEP 2: Perform stock deduction now that invoice is created
-    console.log('🔄 ENABLED: Processing stock deduction for invoice items...');
-    const stockDeduction = await deductStockForInvoice(invoice.items || []);
-    if (!stockDeduction.success) {
-      // Rollback invoice creation if stock deduction fails
-      console.error('❌ Stock deduction failed, rolling back invoice...');
-      try {
-        await supabase.from('invoices').delete().eq('id', data.id);
-        console.log('✅ Invoice rollback completed');
-      } catch (rollbackError) {
-        console.error('❌ CRITICAL: Invoice rollback failed:', rollbackError);
+    // STEP 2: Only deduct stock if invoice is being created as "sent" (which means issued/finalized)
+    if (invoice.status === 'sent') {
+      console.log('🔄 ENABLED: Processing stock deduction for sent/issued invoice...');
+      const stockDeduction = await deductStockForInvoice(invoice.items || []);
+      if (!stockDeduction.success) {
+        // Rollback invoice creation if stock deduction fails
+        console.error('❌ Stock deduction failed, rolling back invoice...');
+        try {
+          await supabase.from('invoices').delete().eq('id', data.id);
+          console.log('✅ Invoice rollback completed');
+        } catch (rollbackError) {
+          console.error('❌ CRITICAL: Invoice rollback failed:', rollbackError);
+        }
+        throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
       }
-      throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
+      
+      console.log('✅ SUCCESS: Stock deduction completed successfully');
+      console.log('📦 Deducted stock for', stockDeduction.deductions.length, 'items');
+    } else {
+      console.log('📝 DRAFT: Invoice created as draft, stock will be deducted when status changes to sent/issued');
     }
-    
-    console.log('✅ SUCCESS: Stock deduction completed successfully');
-    console.log('� Deducted stock for', stockDeduction.deductions.length, 'items');
 
     return {
       id: data.id,
@@ -1029,6 +1033,35 @@ export const createInvoice = async (invoice: any): Promise<any> => {
 
 export const updateInvoice = async (id: string, updates: any): Promise<any> => {
   try {
+    // First, get the current invoice to check status change
+    const { data: currentInvoice, error: fetchError } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching current invoice:', fetchError);
+      throw new Error('Failed to fetch current invoice');
+    }
+
+    const wasIssued = currentInvoice.status === 'sent';
+    const willBeIssued = updates.status === 'sent';
+    const statusChangingToIssued = !wasIssued && willBeIssued;
+
+    // If status is changing to sent (issued), validate stock availability first
+    if (statusChangingToIssued && updates.items) {
+      console.log('🛡️ SAFETY: Validating stock availability before issuing invoice...');
+      const stockValidation = await validateStockAvailability(updates.items);
+      
+      if (!stockValidation.isValid) {
+        console.error('❌ SAFETY: Stock validation failed:', stockValidation.errors);
+        throw new Error(`Insufficient stock: ${stockValidation.errors.join(', ')}`);
+      }
+      
+      console.log('✅ SAFETY: Stock validation passed for invoice issuing');
+    }
+
     const updateData: any = {};
     
     if (updates.invoiceNumber !== undefined) updateData.invoice_number = updates.invoiceNumber;
@@ -1075,6 +1108,31 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     if (error) {
       console.error('Error updating invoice:', error);
       throw new Error('Failed to update invoice');
+    }
+
+    // If status changed to sent (issued), deduct stock
+    if (statusChangingToIssued) {
+      console.log('🔄 STATUS CHANGE: Invoice status changed to sent/issued, deducting stock...');
+      const itemsToDeduct = updates.items || currentInvoice.items;
+      const stockDeduction = await deductStockForInvoice(itemsToDeduct);
+      
+      if (!stockDeduction.success) {
+        // Rollback invoice update if stock deduction fails
+        console.error('❌ Stock deduction failed, rolling back invoice update...');
+        try {
+          await supabase
+            .from('invoices')
+            .update({ status: currentInvoice.status })
+            .eq('id', id);
+          console.log('✅ Invoice status rollback completed');
+        } catch (rollbackError) {
+          console.error('❌ CRITICAL: Invoice rollback failed:', rollbackError);
+        }
+        throw new Error(`Stock deduction failed: ${stockDeduction.errors.join(', ')}`);
+      }
+      
+      console.log('✅ SUCCESS: Stock deduction completed for sent/issued invoice');
+      console.log('📦 Deducted stock for', stockDeduction.deductions.length, 'items');
     }
 
     // Fetch customer data if customer_id exists

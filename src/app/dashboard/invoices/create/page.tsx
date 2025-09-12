@@ -157,15 +157,16 @@ export default function CreateInvoicePage() {
     setLoading(true);
 
     try {
-      // Determine invoice status based on payment
-      let status: 'paid' | 'pending' | 'sent' = 'pending';
+      // Set default status to 'draft' for new invoices
+      let status: 'draft' | 'paid' | 'pending' | 'sent' = 'draft';
       let paymentStatus: 'paid' | 'unpaid' | 'partial' = 'unpaid';
       
+      // Only change status if payment is made
       if (paidAmount >= grandTotal) {
         status = 'paid';
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
-        status = 'pending'; // Status should be 'pending', not 'partial'
+        status = 'draft'; // Keep as draft even with partial payment until user marks as issued
         paymentStatus = 'partial';
       }
 
@@ -726,31 +727,48 @@ export default function CreateInvoicePage() {
                             {/* Variants with Dark Theme */}
                             {product.variants.length > 0 && (
                               <div className="mt-3 space-y-2">
-                                {product.variants.map((variant) => (
-                                  <div key={variant.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                                    <div>
-                                      <div className="text-sm font-medium dark:text-white">{variant.sku}</div>
-                                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                                        {Object.entries(variant.attributes).map(([key, value]) => 
-                                          `${key}: ${value}`
-                                        ).join(', ')}
+                                {product.variants.map((variant) => {
+                                  const stockQty = variant.qty || 0;
+                                  const isOutOfStock = stockQty === 0;
+                                  const isLowStock = stockQty > 0 && stockQty < 5;
+                                  
+                                  return (
+                                    <div key={variant.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-sm font-medium dark:text-white">{variant.sku}</div>
+                                          {isOutOfStock && (
+                                            <Badge variant="destructive" className="text-xs">Out of Stock</Badge>
+                                          )}
+                                          {isLowStock && (
+                                            <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Low Stock</Badge>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                                          {Object.entries(variant.attributes).map(([key, value]) => 
+                                            `${key}: ${value}`
+                                          ).join(', ')}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          Stock: {stockQty} available
+                                        </div>
                                       </div>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          addProductToInvoice(product, variant);
+                                          setProductSearchTerm('');
+                                          setShowProductSearch(false);
+                                        }}
+                                        disabled={!selectedCustomer || isOutOfStock}
+                                        className={isOutOfStock ? "opacity-50 cursor-not-allowed" : "dark:bg-blue-600 dark:hover:bg-blue-700"}
+                                      >
+                                        <Plus className="h-4 w-4 mr-1" />
+                                        {isOutOfStock ? 'Out of Stock' : 'Add'}
+                                      </Button>
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => {
-                                        addProductToInvoice(product, variant);
-                                        setProductSearchTerm('');
-                                        setShowProductSearch(false);
-                                      }}
-                                      disabled={!selectedCustomer}
-                                      className="dark:bg-blue-600 dark:hover:bg-blue-700"
-                                    >
-                                      <Plus className="h-4 w-4 mr-1" />
-                                      Add
-                                    </Button>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>

@@ -16,6 +16,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Save, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Plus, Search } from 'lucide-react';
 import { Invoice, Customer, Product } from '@/lib/types';
 import { SuppressHydrationWarning } from '@/components/SuppressHydrationWarning';
 
@@ -36,10 +43,40 @@ export default function EditInvoicePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string>('draft');
+    const [selectedStatus, setSelectedStatus] = useState<'draft' | 'sent' | 'pending' | 'paid' | 'overdue' | 'cancelled'>('draft');
   const [dueDate, setDueDate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  // New states for editing functionality
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>('');
+  const [addQuantity, setAddQuantity] = useState<number>(1);
+  const [editingPrices, setEditingPrices] = useState<{[key: string]: number}>({});
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [editingDiscount, setEditingDiscount] = useState(false);
+  const [editingTax, setEditingTax] = useState(false);
+  const [newDiscount, setNewDiscount] = useState(0);
+  const [newTax, setNewTax] = useState(0);
+  
+  // Check if invoice is editable - allow editing if original invoice is draft, even if status is being changed to issued
+  const isEditable = invoice?.status === 'draft';
+
+  // Filter products based on search term
+  const filteredProducts = productSearchTerm.trim() ? products.filter(product => {
+    const searchTerm = productSearchTerm.toLowerCase();
+    return (
+      product.title.toLowerCase().includes(searchTerm) ||
+      product.article.toLowerCase().includes(searchTerm) ||
+      product.category.toLowerCase().includes(searchTerm) ||
+      product.variants.some(variant => 
+        variant.sku.toLowerCase().includes(searchTerm) ||
+        Object.values(variant.attributes).some(attr => 
+          attr.toString().toLowerCase().includes(searchTerm)
+        )
+      )
+    );
+  }) : products.slice(0, 20); // Show first 20 products when no search term
   
   // Fetch invoice, customers, and products data
   useEffect(() => {
@@ -65,7 +102,16 @@ export default function EditInvoicePage() {
           productsRes.json()
         ]);
         
-        setInvoice(invoiceData);
+        // Ensure all invoice items have unique IDs
+        const invoiceWithUniqueItems = {
+          ...invoiceData,
+          items: invoiceData.items.map((item: any, index: number) => ({
+            ...item,
+            id: item.id || `existing_item_${index}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+          }))
+        };
+        
+        setInvoice(invoiceWithUniqueItems);
         setCustomers(customersData);
         setProducts(productsData);
         setSelectedCustomer(invoiceData.customer || null);
@@ -106,11 +152,20 @@ export default function EditInvoicePage() {
       });
       
       if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.details && errorData.details.includes('Insufficient stock')) {
+          throw new Error(`Cannot issue invoice: ${errorData.details}`);
+        }
         throw new Error('Failed to update invoice');
       }
       
       const updatedInvoice = await response.json();
       console.log('Invoice updated successfully:', updatedInvoice);
+      
+      // Show success message if invoice was sent (issued)
+      if (selectedStatus === 'sent' && invoice?.status === 'draft') {
+        alert('✅ Invoice issued successfully! Stock has been deducted.');
+      }
       
       // Navigate back to invoices list
       router.push('/dashboard/invoices');
@@ -130,7 +185,7 @@ export default function EditInvoicePage() {
       ...invoice,
       items: updatedItems,
       subtotal,
-      total: subtotal + invoice.tax
+      total: subtotal + invoice.tax - (invoice.discount || 0)
     });
   };
 
@@ -148,8 +203,83 @@ export default function EditInvoicePage() {
       ...invoice,
       items: updatedItems,
       subtotal,
-      total: subtotal + invoice.tax
+      total: subtotal + invoice.tax - (invoice.discount || 0)
     });
+  };
+
+  const updateItemPrice = (itemId: string, unitPrice: number) => {
+    if (!invoice) return;
+    const updatedItems = invoice.items.map(item => {
+      if (item.id === itemId) {
+        const total = item.quantity * unitPrice;
+        return { ...item, unitPrice, total };
+      }
+      return item;
+    });
+    const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
+    setInvoice({
+      ...invoice,
+      items: updatedItems,
+      subtotal,
+      total: subtotal + invoice.tax - (invoice.discount || 0)
+    });
+    
+    // Clear the editing state for this item
+    const newEditingPrices = { ...editingPrices };
+    delete newEditingPrices[itemId];
+    setEditingPrices(newEditingPrices);
+  };
+
+  const addProductToInvoice = (product: Product, variant?: any) => {
+    if (!invoice) return;
+    
+    const newItem = {
+      id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate a unique ID for the invoice item
+      productId: product.id,
+      productName: product.title,
+      sku: variant ? variant.sku : product.article, // Use variant SKU or product article
+      quantity: addQuantity,
+      unitPrice: variant ? product.retail : product.retail, // For now, use retail price
+      total: addQuantity * product.retail
+    };
+
+    const updatedItems = [...invoice.items, newItem];
+    const subtotal = updatedItems.reduce((sum, item) => sum + item.total, 0);
+    
+    setInvoice({
+      ...invoice,
+      items: updatedItems,
+      subtotal,
+      total: subtotal + invoice.tax - (invoice.discount || 0)
+    });
+
+    // Reset form
+    setSelectedProductToAdd('');
+    setAddQuantity(1);
+    setProductSearchTerm('');
+    setIsAddingProduct(false);
+  };
+
+  const updateDiscount = (discount: number) => {
+    if (!invoice) return;
+    const newTotal = invoice.subtotal + invoice.tax - discount;
+    setInvoice({
+      ...invoice,
+      discount,
+      total: newTotal
+    });
+    setEditingDiscount(false);
+  };
+
+  const updateTax = (tax: number) => {
+    if (!invoice) return;
+    const newTotal = invoice.subtotal + tax - (invoice.discount || 0);
+    setInvoice({
+      ...invoice,
+      tax,
+      total: newTotal
+    });
+    setEditingTax(false);
   };
 
   if (loading) {
@@ -186,6 +316,26 @@ export default function EditInvoicePage() {
     <DashboardLayout>
       <SuppressHydrationWarning>
         <div className="space-y-6">
+        {!isEditable && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-amber-800">
+                  Read-Only Mode
+                </h3>
+                <div className="mt-2 text-sm text-amber-700">
+                  <p>This invoice is in "{selectedStatus}" status and cannot be edited. Change the status to "Draft" to enable editing.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button 
@@ -205,12 +355,17 @@ export default function EditInvoicePage() {
             </div>
           </div>
           <Button 
-            onClick={handleSaveInvoice} 
-            disabled={saving}
-            className="bg-primary hover:bg-primary/90"
+            onClick={handleSaveInvoice}
+            disabled={saving || !isEditable}
+            className={`${!isEditable ? "opacity-50 cursor-not-allowed" : 
+                       selectedStatus === 'sent' && isEditable ? "bg-red-600 hover:bg-red-700" : 
+                       "bg-primary hover:bg-primary/90"}`}
           >
             <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? 'Saving...' : 
+             !isEditable ? 'Read Only' :
+             selectedStatus === 'sent' && isEditable ? 'Issue Invoice & Deduct Stock' :
+             'Save Changes'}
           </Button>
         </div>
 
@@ -233,17 +388,34 @@ export default function EditInvoicePage() {
               
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as any)} disabled={!isEditable}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Issued</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
                     <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
+                {!isEditable && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    ⚠️ This invoice has been issued and is read-only. Stock has been deducted.
+                  </p>
+                )}
+                {isEditable && selectedStatus === 'sent' && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    🚨 Click "Save Changes" to issue this invoice and deduct stock permanently.
+                  </p>
+                )}
+                {isEditable && selectedStatus === 'draft' && (
+                  <p className="text-sm text-blue-600 dark:text-blue-400">
+                    💡 Change status to "Issued" to finalize the invoice and deduct stock.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -253,6 +425,8 @@ export default function EditInvoicePage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
+                  disabled={!isEditable}
+                  className={!isEditable ? "bg-gray-50" : ""}
                 />
               </div>
             </CardContent>
@@ -272,6 +446,7 @@ export default function EditInvoicePage() {
                     const customer = customers.find(c => c.id === value);
                     setSelectedCustomer(customer || null);
                   }}
+                  disabled={!isEditable}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a customer" />
@@ -303,7 +478,125 @@ export default function EditInvoicePage() {
         {/* Invoice Items */}
         <Card>
           <CardHeader>
-            <CardTitle>Invoice Items</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Invoice Items</CardTitle>
+              {isEditable && (
+                <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Product
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Add Product to Invoice</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Search Products</Label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Search by product name, article, SKU, or category..."
+                            value={productSearchTerm}
+                            onChange={(e) => setProductSearchTerm(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Product Results */}
+                      <div className="max-h-60 overflow-y-auto border rounded-lg">
+                        {filteredProducts.map((product) => (
+                          <div key={product.id} className="border-b last:border-b-0">
+                            <div className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium">{product.title}</div>
+                                  <div className="text-sm text-gray-600">{product.article}</div>
+                                  <Badge variant="outline">{product.category}</Badge>
+                                </div>
+                                {product.variants.length === 0 && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => addProductToInvoice(product)}
+                                    disabled={!isEditable}
+                                    className={!isEditable ? "opacity-50 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}
+                                  >
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Add
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {/* Variants */}
+                              {product.variants.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {product.variants.map((variant) => {
+                                    const stockQty = variant.qty || 0;
+                                    const isOutOfStock = stockQty === 0;
+                                    const isLowStock = stockQty > 0 && stockQty < 5;
+                                    
+                                    return (
+                                      <div key={variant.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <div className="text-sm font-medium">{variant.sku}</div>
+                                            {isOutOfStock && (
+                                              <Badge variant="destructive" className="text-xs">Out of Stock</Badge>
+                                            )}
+                                            {isLowStock && (
+                                              <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">Low Stock</Badge>
+                                            )}
+                                          </div>
+                                          <div className="text-xs text-gray-600">
+                                            {Object.entries(variant.attributes).map(([key, value]) => 
+                                              `${key}: ${value}`
+                                            ).join(', ')}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            Stock: {stockQty} available
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => addProductToInvoice(product, variant)}
+                                          disabled={isOutOfStock || !isEditable}
+                                          className={isOutOfStock || !isEditable ? "opacity-50 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}
+                                        >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          {isOutOfStock ? 'Out of Stock' : !isEditable ? 'Read Only' : 'Add'}
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Quantity</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={addQuantity}
+                          onChange={(e) => setAddQuantity(parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsAddingProduct(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -317,30 +610,87 @@ export default function EditInvoicePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoice.items.map((item) => {
+                {invoice.items.map((item, index) => {
                   const product = products.find(p => p.id === item.productId);
+                  const isEditingPrice = editingPrices[item.id] !== undefined;
+                  
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell>{product?.title || 'Product Not Found'}</TableCell>
+                    <TableRow key={`item-${item.id || index}-${item.productId || 'unknown'}`}>
                       <TableCell>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
-                          className="w-20"
-                        />
+                        <div>
+                          <div className="font-medium">{product?.title || item.productName || 'Product Not Found'}</div>
+                          {item.sku && (
+                            <div className="text-sm text-gray-500">SKU: {item.sku}</div>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell>£{item.unitPrice.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {isEditable ? (
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItemQuantity(item.id, parseInt(e.target.value) || 1)}
+                            className="w-20"
+                          />
+                        ) : (
+                          <span>{item.quantity}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditable ? (
+                          <div className="flex items-center gap-2">
+                            {isEditingPrice ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm">£</span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editingPrices[item.id]}
+                                  onChange={(e) => setEditingPrices(prev => ({ 
+                                    ...prev, 
+                                    [item.id]: parseFloat(e.target.value) || 0 
+                                  }))}
+                                  className="w-20"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateItemPrice(item.id, editingPrices[item.id]);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      const newEditingPrices = { ...editingPrices };
+                                      delete newEditingPrices[item.id];
+                                      setEditingPrices(newEditingPrices);
+                                    }
+                                  }}
+                                  onBlur={() => updateItemPrice(item.id, editingPrices[item.id])}
+                                  autoFocus
+                                />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setEditingPrices(prev => ({ ...prev, [item.id]: item.unitPrice }))}
+                                className="text-left hover:bg-gray-50 p-1 rounded"
+                              >
+                                £{item.unitPrice.toFixed(2)}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span>£{item.unitPrice.toFixed(2)}</span>
+                        )}
+                      </TableCell>
                       <TableCell>£{item.total.toFixed(2)}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {isEditable && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -354,13 +704,89 @@ export default function EditInvoicePage() {
                 <span>Subtotal:</span>
                 <span>£{invoice.subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span>Discount:</span>
-                <span>-£{(invoice.discount || 0).toFixed(2)}</span>
+                {isEditable ? (
+                  <div className="flex items-center gap-2">
+                    {editingDiscount ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">-£</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={newDiscount}
+                          onChange={(e) => setNewDiscount(parseFloat(e.target.value) || 0)}
+                          className="w-20"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              updateDiscount(newDiscount);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingDiscount(false);
+                            }
+                          }}
+                          onBlur={() => updateDiscount(newDiscount)}
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setNewDiscount(invoice.discount || 0);
+                          setEditingDiscount(true);
+                        }}
+                        className="text-left hover:bg-gray-50 p-1 rounded"
+                      >
+                        -£{(invoice.discount || 0).toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span>-£{(invoice.discount || 0).toFixed(2)}</span>
+                )}
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span>Tax:</span>
-                <span>£{invoice.tax.toFixed(2)}</span>
+                {isEditable ? (
+                  <div className="flex items-center gap-2">
+                    {editingTax ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">£</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={newTax}
+                          onChange={(e) => setNewTax(parseFloat(e.target.value) || 0)}
+                          className="w-20"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              updateTax(newTax);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingTax(false);
+                            }
+                          }}
+                          onBlur={() => updateTax(newTax)}
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setNewTax(invoice.tax);
+                          setEditingTax(true);
+                        }}
+                        className="text-left hover:bg-gray-50 p-1 rounded"
+                      >
+                        £{invoice.tax.toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span>£{invoice.tax.toFixed(2)}</span>
+                )}
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total:</span>
