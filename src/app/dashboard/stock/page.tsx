@@ -37,6 +37,7 @@ import { manualRestockItems } from '@/lib/db/shared-db';
 
 interface StockItem {
   id: string;
+  productId: string;
   article: string;
   name: string;
   category: string;
@@ -83,6 +84,7 @@ export default function StockPage() {
         product.variants.forEach(variant => {
           stockItems.push({
             id: variant.id,
+            productId: product.id,
             article: product.article,
             name: product.title,
             category: product.category,
@@ -103,6 +105,7 @@ export default function StockPage() {
         // Product has no variants - create a single stock item for the product
         stockItems.push({
           id: product.id,
+          productId: product.id,
           article: product.article,
           name: product.title,
           category: product.category,
@@ -166,8 +169,8 @@ export default function StockPage() {
       const finalQuantity = adjustmentType === 'add' ? adjustmentQuantity : -adjustmentQuantity;
       
       const adjustmentItems = [{
-        productId: selectedItem.id,
-        variantId: selectedItem.id, // Using the same ID for simplicity
+        productId: selectedItem.productId,
+        variantId: selectedItem.id !== selectedItem.productId ? selectedItem.id : undefined, // Only include variantId if it's different from productId
         quantity: finalQuantity,
         reason: adjustmentReason || `Manual ${adjustmentType === 'add' ? 'restock' : 'adjustment'}`
       }];
@@ -315,11 +318,11 @@ export default function StockPage() {
                     <TableHead className="dark:text-gray-300">Variant</TableHead>
                     <TableHead className="dark:text-gray-300">Stock</TableHead>
                     <TableHead className="dark:text-gray-300">Status</TableHead>
-                    <TableHead className="dark:text-gray-300">Stock Value</TableHead>
-                    <TableHead className="dark:text-gray-300">Wholesale Rev.</TableHead>
-                    <TableHead className="dark:text-gray-300">Retail Rev.</TableHead>
-                    <TableHead className="dark:text-gray-300">Club Rev.</TableHead>
-                    <TableHead className="dark:text-gray-300">Actions</TableHead>
+                    <TableHead className="dark:text-gray-300 hidden lg:table-cell">Stock Value</TableHead>
+                    <TableHead className="dark:text-gray-300 hidden xl:table-cell">Wholesale Rev.</TableHead>
+                    <TableHead className="dark:text-gray-300 hidden xl:table-cell">Retail Rev.</TableHead>
+                    <TableHead className="dark:text-gray-300 hidden xl:table-cell">Club Rev.</TableHead>
+                    <TableHead className="dark:text-gray-300 sticky right-0 bg-white dark:bg-gray-800">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -360,19 +363,19 @@ export default function StockPage() {
                               {stockStatus.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="dark:text-gray-300">
+                          <TableCell className="dark:text-gray-300 hidden lg:table-cell">
                             £{(item.qty * item.costAfter).toFixed(2)}
                           </TableCell>
-                          <TableCell className="dark:text-gray-300 text-green-600">
+                          <TableCell className="dark:text-gray-300 text-green-600 hidden xl:table-cell">
                             £{(item.qty * Math.max(0, item.wholesale - item.costAfter)).toFixed(2)}
                           </TableCell>
-                          <TableCell className="dark:text-gray-300 text-blue-600">
+                          <TableCell className="dark:text-gray-300 text-blue-600 hidden xl:table-cell">
                             £{(item.qty * Math.max(0, item.retail - item.costAfter)).toFixed(2)}
                           </TableCell>
-                          <TableCell className="dark:text-gray-300 text-purple-600">
+                          <TableCell className="dark:text-gray-300 text-purple-600 hidden xl:table-cell">
                             £{(item.qty * Math.max(0, item.club - item.costAfter)).toFixed(2)}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="sticky right-0 bg-white dark:bg-gray-800">
                             <Button
                               variant="outline"
                               size="sm"
