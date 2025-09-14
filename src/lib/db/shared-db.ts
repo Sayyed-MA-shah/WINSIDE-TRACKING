@@ -145,18 +145,38 @@ export const validateStockAvailability = async (invoiceItems: any[]): Promise<{
           errors.push(`Insufficient stock for ${product.title} (${variant.sku}): requested ${requestedQty}, available ${currentStock}`);
         }
       } else {
-        // Product without variants - this might need different handling
+        // Product without variants - check global stock
+        const requestedQty = item.quantity || 0;
+        let currentStock = 0;
+        
+        if (product.stock !== undefined) {
+          // Product has global stock field
+          currentStock = product.stock || 0;
+        } else if (product.variants && product.variants.length > 0) {
+          // Calculate total stock from all variants
+          currentStock = product.variants.reduce((total: number, v: any) => total + (v.qty || 0), 0);
+        } else {
+          // Product has no stock tracking
+          console.warn('⚠️  Product has no stock tracking:', product.title);
+          errors.push(`Product ${product.title} has no stock tracking - cannot validate stock`);
+          continue;
+        }
+        
         stockCheck.push({
-          type: 'product',
+          type: 'global',
           productId: product.id,
           productTitle: product.title,
           variantId: null,
-          variantSku: null,
-          currentStock: 'N/A',
-          requestedQty: item.quantity || 0,
-          afterSale: 'N/A',
-          available: true // For now, assume products without variants are always available
+          variantSku: 'GLOBAL-STOCK',
+          currentStock,
+          requestedQty,
+          afterSale: currentStock - requestedQty,
+          available: currentStock >= requestedQty
         });
+        
+        if (currentStock < requestedQty) {
+          errors.push(`Insufficient stock for ${product.title} (global stock): requested ${requestedQty}, available ${currentStock}`);
+        }
       }
     }
     
@@ -207,26 +227,73 @@ export const deductStockForInvoice = async (invoiceItems: any[]): Promise<{
     
     // Step 2: Prepare deduction operations (but don't execute yet)
     for (const item of invoiceItems) {
-      if (!item.variantId) continue; // Skip products without variants for now
-      
       const product = await getProductById(item.productId);
-      if (!product) continue;
+      if (!product) {
+        console.error('❌ Product not found during stock deduction preparation:', item.productId);
+        errors.push(`Product not found: ${item.productId}`);
+        continue;
+      }
       
-      const variant = product.variants?.find((v: any) => v.id === item.variantId);
-      if (!variant) continue;
-      
-      // Prepare the deduction operation
-      const deduction = {
-        productId: product.id,
-        variantId: variant.id,
-        currentQty: variant.qty,
-        deductQty: item.quantity,
-        newQty: variant.qty - item.quantity,
-        productTitle: product.title,
-        variantSku: variant.sku
-      };
-      
-      deductions.push(deduction);
+      if (item.variantId) {
+        // Handle products WITH variants
+        const variant = product.variants?.find((v: any) => v.id === item.variantId);
+        if (!variant) {
+          console.error('❌ Variant not found during stock deduction preparation:', {
+            productId: item.productId,
+            productTitle: product.title,
+            variantId: item.variantId,
+            availableVariants: product.variants?.map((v: any) => v.id) || []
+          });
+          errors.push(`Variant ${item.variantId} not found in product ${product.title} (${item.productId})`);
+          continue;
+        }
+        
+        // Prepare the variant deduction operation
+        const deduction = {
+          type: 'variant',
+          productId: product.id,
+          variantId: variant.id,
+          currentQty: variant.qty,
+          deductQty: item.quantity,
+          newQty: variant.qty - item.quantity,
+          productTitle: product.title,
+          variantSku: variant.sku
+        };
+        
+        deductions.push(deduction);
+      } else {
+        // Handle products WITHOUT variants - use global stock
+        console.log('📦 Processing product without variants:', product.title);
+        
+        // Check if product has a global stock field or calculate from variants
+        let currentStock = 0;
+        if (product.stock !== undefined) {
+          // Product has global stock field
+          currentStock = product.stock || 0;
+        } else if (product.variants && product.variants.length > 0) {
+          // Calculate total stock from all variants
+          currentStock = product.variants.reduce((total: number, v: any) => total + (v.qty || 0), 0);
+        } else {
+          // Product has no stock tracking
+          console.warn('⚠️  Product has no stock tracking (no variants and no global stock):', product.title);
+          errors.push(`Product ${product.title} has no stock tracking - cannot deduct stock`);
+          continue;
+        }
+        
+        // Prepare the global stock deduction operation
+        const deduction = {
+          type: 'global',
+          productId: product.id,
+          variantId: null,
+          currentQty: currentStock,
+          deductQty: item.quantity,
+          newQty: currentStock - item.quantity,
+          productTitle: product.title,
+          variantSku: 'GLOBAL-STOCK'
+        };
+        
+        deductions.push(deduction);
+      }
     }
     
     console.log('📋 Prepared stock deductions:', deductions);
@@ -239,16 +306,50 @@ export const deductStockForInvoice = async (invoiceItems: any[]): Promise<{
           throw new Error(`Product not found during deduction: ${deduction.productId}`);
         }
         
-        // Update the variant quantity in the product's variants array
-        const updatedVariants = product.variants.map((v: any) => {
-          if (v.id === deduction.variantId) {
-            return { ...v, qty: deduction.newQty };
+        if (deduction.type === 'variant') {
+          // Update the variant quantity in the product's variants array
+          const updatedVariants = product.variants.map((v: any) => {
+            if (v.id === deduction.variantId) {
+              return { ...v, qty: deduction.newQty };
+            }
+            return v;
+          });
+          
+          // Update the product with new variant quantities
+          await updateProduct(deduction.productId, { variants: updatedVariants });
+          
+        } else if (deduction.type === 'global') {
+          // Handle global stock deduction
+          // First, try to deduct from existing variants proportionally
+          if (product.variants && product.variants.length > 0) {
+            // Deduct proportionally from variants
+            const totalCurrentStock = product.variants.reduce((total: number, v: any) => total + (v.qty || 0), 0);
+            let remainingToDeduct = deduction.deductQty;
+            
+            const updatedVariants = product.variants.map((v: any) => {
+              if (remainingToDeduct <= 0) return v;
+              
+              const variantStock = v.qty || 0;
+              const proportion = totalCurrentStock > 0 ? variantStock / totalCurrentStock : 0;
+              const deductFromThis = Math.min(Math.floor(proportion * deduction.deductQty), variantStock, remainingToDeduct);
+              
+              remainingToDeduct -= deductFromThis;
+              return { ...v, qty: variantStock - deductFromThis };
+            });
+            
+            await updateProduct(deduction.productId, { variants: updatedVariants });
+          } else {
+            // Update global stock field if it exists
+            const updateData: any = {};
+            if (product.stock !== undefined) {
+              updateData.stock = deduction.newQty;
+            } else {
+              // Add a stock field to the product
+              updateData.stock = Math.max(0, deduction.newQty);
+            }
+            await updateProduct(deduction.productId, updateData);
           }
-          return v;
-        });
-        
-        // Update the product with new variant quantities
-        await updateProduct(deduction.productId, { variants: updatedVariants });
+        }
         
         console.log(`✅ Stock deducted: ${deduction.productTitle} (${deduction.variantSku}) ${deduction.currentQty} → ${deduction.newQty}`);
         
