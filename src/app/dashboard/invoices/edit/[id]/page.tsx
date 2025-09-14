@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Save, Trash2, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Plus, Search, Printer } from 'lucide-react';
 import { Invoice, Customer, Product } from '@/lib/types';
 import { SuppressHydrationWarning } from '@/components/SuppressHydrationWarning';
 
@@ -45,6 +45,8 @@ export default function EditInvoicePage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [selectedStatus, setSelectedStatus] = useState<'draft' | 'sent' | 'pending' | 'paid' | 'overdue' | 'cancelled'>('draft');
   const [dueDate, setDueDate] = useState<string>('');
+  const [invoiceNumber, setInvoiceNumber] = useState<string>('');
+  const [poNumber, setPoNumber] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -117,6 +119,12 @@ export default function EditInvoicePage() {
         setSelectedCustomer(invoiceData.customer || null);
         setSelectedStatus(invoiceData.status);
         setDueDate(new Date(invoiceData.dueDate).toISOString().split('T')[0]);
+        setInvoiceNumber(invoiceData.invoiceNumber || '');
+        setPoNumber(invoiceData.poNumber || '');
+        
+        // Debug loading
+        console.log('Invoice loaded - PO Number:', invoiceData.poNumber);
+        console.log('Full invoice data:', invoiceData);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -134,6 +142,8 @@ export default function EditInvoicePage() {
       setSaving(true);
       
       const updateData = {
+        invoiceNumber: invoiceNumber,
+        poNumber: poNumber, // Re-enabled PO number for editing
         customerId: selectedCustomer?.id,
         status: selectedStatus,
         dueDate: new Date(dueDate).toISOString(),
@@ -162,6 +172,9 @@ export default function EditInvoicePage() {
       const updatedInvoice = await response.json();
       console.log('Invoice updated successfully:', updatedInvoice);
       
+      // Update the local invoice state with the saved data
+      setInvoice(updatedInvoice);
+      
       // Show success message if invoice was sent (issued)
       if (selectedStatus === 'sent' && invoice?.status === 'draft') {
         alert('✅ Invoice issued successfully! Stock has been deducted.');
@@ -174,6 +187,201 @@ export default function EditInvoicePage() {
       alert('Failed to save invoice. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const generatePDF = async () => {
+    if (!invoice || !selectedCustomer) {
+      alert('Invoice data not available for PDF generation');
+      return;
+    }
+
+    // Debug logging
+    console.log('PDF Generation Debug:');
+    console.log('invoice.poNumber:', invoice.poNumber);
+    console.log('poNumber state:', poNumber);
+    console.log('invoiceNumber state:', invoiceNumber);
+    console.log('Full invoice object:', invoice);
+
+    try {
+      // Dynamic import of jsPDF
+      const jsPDF = (await import('jspdf')).default;
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      let logoData: string | null = null;
+      try {
+        const response = await fetch('/logo.png');
+        const blob = await response.blob();
+        logoData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.log('Logo loading failed:', error);
+      }
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      
+      // Professional Colors
+      const primaryColor = '#0F62FE';
+      const darkGray = '#1A1D21';
+      const lightGray = '#E9EDF2';
+      const mediumGray = '#5C6270';
+
+      // Page dimensions
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+
+      // COMPANY HEADER
+      if (logoData) {
+        doc.addImage(logoData, 'PNG', margin, 8, 20, 20);
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(primaryColor);
+      doc.text('BYKO SPORTS', logoData ? margin + 25 : margin, 18);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(mediumGray);
+      doc.text('Your Sports Equipment Partner', logoData ? margin + 25 : margin, 22);
+
+      // INVOICE TITLE
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(24);
+      doc.setTextColor(darkGray);
+      doc.text('INVOICE', pageWidth - 50, 16);
+
+      // INVOICE METADATA
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(mediumGray);
+      
+      const metadataStartY = 22;
+      const lineSpacing = 4;
+      const metadataX = pageWidth - 70;
+      
+      // Labels
+      doc.text('Invoice No:', metadataX, metadataStartY);
+      doc.text('Issue Date:', metadataX, metadataStartY + lineSpacing);
+      doc.text('Due Date:', metadataX, metadataStartY + (lineSpacing * 2));
+      doc.text('PO Number:', metadataX, metadataStartY + (lineSpacing * 3));
+
+      // Values
+      doc.setFont('helvetica', 'normal');
+      doc.text(invoiceNumber, metadataX + 25, metadataStartY);
+      doc.text(invoice.date ? new Date(invoice.date).toLocaleDateString('en-GB', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      }) : new Date().toLocaleDateString('en-GB', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      }), metadataX + 25, metadataStartY + lineSpacing);
+      doc.text(new Date(dueDate).toLocaleDateString('en-GB', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      }), metadataX + 25, metadataStartY + (lineSpacing * 2));
+      
+      // Use current state value for PO number (most up-to-date)
+      const poNumberValue = poNumber || invoice.poNumber || 'N/A';
+      console.log('Adding PO Number to PDF:', poNumberValue);
+      
+      doc.text(poNumberValue, metadataX + 25, metadataStartY + (lineSpacing * 3));
+
+      // CLIENT INFORMATION
+      const cardsY = 40;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(darkGray);
+      doc.text('Bill To:', margin + 3, cardsY + 6);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(darkGray);
+      doc.text(selectedCustomer.name, margin + 3, cardsY + 11);
+      if (selectedCustomer.company) {
+        doc.text(selectedCustomer.company, margin + 3, cardsY + 15);
+      }
+      doc.text(selectedCustomer.phone, margin + 3, cardsY + 19);
+      doc.text(selectedCustomer.address, margin + 3, cardsY + 23);
+
+      // ITEMS TABLE
+      const tableStartY = cardsY + 35;
+      const tableColumns = [
+        { header: 'Item Description', dataKey: 'description' },
+        { header: 'Qty', dataKey: 'quantity' },
+        { header: 'Unit Price', dataKey: 'unitPrice' },
+        { header: 'Total', dataKey: 'total' }
+      ];
+
+      const tableData = invoice.items.map(item => ({
+        description: `${item.productName || 'Product'} (${item.sku || 'N/A'})`,
+        quantity: item.quantity.toString(),
+        unitPrice: `£${item.unitPrice.toFixed(2)}`,
+        total: `£${item.total.toFixed(2)}`
+      }));
+
+      autoTable(doc, {
+        startY: tableStartY,
+        columns: tableColumns,
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: primaryColor,
+          textColor: '#ffffff',
+          fontSize: 9,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: darkGray
+        },
+        margin: { left: margin, right: margin }
+      });
+
+      // TOTALS
+      const finalY = (doc as any).lastAutoTable.finalY + 10;
+      const totalsX = pageWidth - 60;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(darkGray);
+      
+      doc.text('Subtotal:', totalsX, finalY);
+      doc.text(`£${invoice.subtotal.toFixed(2)}`, totalsX + 30, finalY);
+      
+      if (invoice.discount && invoice.discount > 0) {
+        doc.text('Discount:', totalsX, finalY + 5);
+        doc.text(`-£${invoice.discount.toFixed(2)}`, totalsX + 30, finalY + 5);
+      }
+      
+      doc.text('Tax:', totalsX, finalY + 10);
+      doc.text(`£${invoice.tax.toFixed(2)}`, totalsX + 30, finalY + 10);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('Total:', totalsX, finalY + 18);
+      doc.text(`£${invoice.total.toFixed(2)}`, totalsX + 30, finalY + 18);
+
+      // FOOTER
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(mediumGray);
+      doc.text('Thank you for your business!', margin, pageHeight - 20);
+      doc.text('Terms: Payment due within 30 days', margin, pageHeight - 15);
+
+      doc.save(`invoice-${invoiceNumber}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
     }
   };
 
@@ -347,26 +555,36 @@ export default function EditInvoicePage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Edit Invoice {invoice.invoiceNumber}
+                Edit Invoice {invoiceNumber || 'Loading...'}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Modify invoice details and items
               </p>
             </div>
           </div>
-          <Button 
-            onClick={handleSaveInvoice}
-            disabled={saving || !isEditable}
-            className={`${!isEditable ? "opacity-50 cursor-not-allowed" : 
-                       selectedStatus === 'sent' && isEditable ? "bg-red-600 hover:bg-red-700" : 
-                       "bg-primary hover:bg-primary/90"}`}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 
-             !isEditable ? 'Read Only' :
-             selectedStatus === 'sent' && isEditable ? 'Issue Invoice & Deduct Stock' :
-             'Save Changes'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={generatePDF}
+              variant="outline"
+              disabled={!invoice || !selectedCustomer}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print PDF
+            </Button>
+            <Button 
+              onClick={handleSaveInvoice}
+              disabled={saving || !isEditable}
+              className={`${!isEditable ? "opacity-50 cursor-not-allowed" : 
+                         selectedStatus === 'sent' && isEditable ? "bg-red-600 hover:bg-red-700" : 
+                         "bg-primary hover:bg-primary/90"}`}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 
+               !isEditable ? 'Read Only' :
+               selectedStatus === 'sent' && isEditable ? 'Issue Invoice & Deduct Stock' :
+               'Save Changes'}
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -380,10 +598,34 @@ export default function EditInvoicePage() {
                 <Label htmlFor="invoice-number">Invoice Number</Label>
                 <Input 
                   id="invoice-number"
-                  value={invoice.invoiceNumber}
-                  disabled
-                  className="bg-gray-50"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  disabled={!isEditable}
+                  className={!isEditable ? "bg-gray-50" : ""}
+                  placeholder="Enter invoice number"
                 />
+                {isEditable && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    💡 You can edit the invoice number to fix any issues
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="po-number">PO Number</Label>
+                <Input 
+                  id="po-number"
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                  disabled={!isEditable}
+                  className={!isEditable ? "bg-gray-50" : ""}
+                  placeholder="Enter PO/reference number (optional)"
+                />
+                {isEditable && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    💡 Optional purchase order or reference number
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">

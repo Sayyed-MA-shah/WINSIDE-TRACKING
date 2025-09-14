@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { getNextInvoiceNumber, previewNextInvoiceNumber } from '@/lib/utils/invoice-numbering';
+import { getNextPoNumber } from '@/lib/utils/po-numbering';
 import {
   Table,
   TableBody,
@@ -172,6 +173,7 @@ export default function CreateInvoicePage() {
 
       const invoiceData = {
         invoiceNumber: getNextInvoiceNumber(),
+        poNumber: getNextPoNumber(), // Auto-generate PO number
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         date: new Date().toISOString().split('T')[0],
@@ -248,6 +250,7 @@ export default function CreateInvoicePage() {
 
       const doc = new jsPDF('p', 'mm', 'a4'); // Explicit A4 sizing
       const invoiceNumber = getNextInvoiceNumber();
+      const poNumber = getNextPoNumber(); // Get PO number for PDF
       
       // Professional Colors
       const primaryColor = '#0F62FE';
@@ -330,7 +333,7 @@ export default function CreateInvoicePage() {
         month: 'short', 
         year: 'numeric' 
       }), metadataX + 25, metadataStartY + (lineSpacing * 2));
-      doc.text('PO-04567', metadataX + 25, metadataStartY + (lineSpacing * 3));
+      doc.text(poNumber, metadataX + 25, metadataStartY + (lineSpacing * 3));
 
       // === CLIENT INFORMATION CARDS ===
       

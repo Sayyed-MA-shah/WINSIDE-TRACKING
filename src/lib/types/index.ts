@@ -104,6 +104,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  poNumber?: string; // Added PO/reference number field
   customerId: string;
   customerName?: string; // Added customer name field
   customer?: Customer;

@@ -889,6 +889,9 @@ export const getAllInvoices = async (): Promise<Invoice[]> => {
 
 export const addInvoice = async (invoice: any): Promise<any> => {
   try {
+    // Import PO number generation
+    const { getNextPoNumber } = await import('@/lib/utils/po-numbering');
+    
     // Check Supabase configuration
     console.log('DB: Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
     console.log('DB: Supabase Anon Key configured:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -936,6 +939,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
     // Prepare invoice data with proper types
     const invoiceData = {
       invoice_number: invoice.invoiceNumber,
+      po_number: invoice.poNumber || getNextPoNumber(), // Auto-generate PO number if not provided
       customer_id: invoice.customerId, // This should match the customer UUID
       customer_name: invoice.customerName || null,
       date: invoice.date || null,
@@ -1004,6 +1008,7 @@ export const addInvoice = async (invoice: any): Promise<any> => {
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
+      poNumber: data.po_number || '', // Re-enabled PO number field
       customerId: data.customer_id,
       customerName: data.customer_name,
       date: data.date,
@@ -1065,6 +1070,7 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     const updateData: any = {};
     
     if (updates.invoiceNumber !== undefined) updateData.invoice_number = updates.invoiceNumber;
+    if (updates.poNumber !== undefined) updateData.po_number = updates.poNumber; // Re-enabled PO number field
     if (updates.customerId !== undefined) updateData.customer_id = updates.customerId;
     if (updates.customerName !== undefined) updateData.customer_name = updates.customerName;
     if (updates.date !== undefined) updateData.date = updates.date;
@@ -1162,6 +1168,7 @@ export const updateInvoice = async (id: string, updates: any): Promise<any> => {
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
+      poNumber: data.po_number || '', // Added PO number field
       customerId: data.customer_id,
       customerName: data.customer_name,
       customer: customer, // Include the full customer object
@@ -1266,6 +1273,7 @@ export const getInvoiceById = async (id: string): Promise<any | null> => {
     return {
       id: data.id,
       invoiceNumber: data.invoice_number,
+      poNumber: data.po_number || '', // Added PO number field
       customerId: data.customer_id,
       customerName: data.customer_name,
       customer: customer, // Include the full customer object
