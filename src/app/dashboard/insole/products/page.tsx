@@ -14,7 +14,9 @@ import {
   Trash2,
   ArrowLeft,
   AlertTriangle,
-  Heart
+  Heart,
+  DollarSign,
+  Archive
 } from 'lucide-react';
 import { useInsoleAuth } from '@/lib/context/insole-auth';
 import { insoleDb } from '@/lib/db/insole-db';
@@ -56,6 +58,19 @@ export default function InsoleProducts() {
       console.error('Error deleting product:', error);
       alert('Failed to delete product');
     }
+  };
+
+  const getProductStats = (product: any) => {
+    const variations = product.variations || [];
+    const totalQty = variations.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || product.stock_quantity || 0;
+    const variantCount = variations.length || 1;
+    
+    return { 
+      totalQty, 
+      variantCount, 
+      retail: product.retail || 0, 
+      wholesale: product.wholesale || 0 
+    };
   };
 
   const filteredProducts = products.filter(product =>
@@ -148,116 +163,170 @@ export default function InsoleProducts() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((product) => (
-              <Card key={product.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{product.title}</CardTitle>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Article: {product.article}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500">
-                        {product.category} • {product.brand}
-                      </p>
+            {filteredProducts.map(product => {
+              const stats = getProductStats(product);
+              return (
+                <div
+                  key={product.id}
+                  className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  {/* Product Image */}
+                  {product.mediaMain && (
+                    <div className="aspect-video rounded-t-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                      <img
+                        src={product.mediaMain}
+                        alt={product.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
                     </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/dashboard/insole/products/${product.id}/edit`)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Pricing */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Retail Price:</span>
-                      <span className="text-lg font-bold text-green-600">£{product.retail?.toFixed(2) || '0.00'}</span>
-                    </div>
-                    
-                    {/* Wholesale Price */}
-                    {product.wholesale > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Wholesale:</span>
-                        <span className="text-sm font-medium text-blue-600">£{product.wholesale?.toFixed(2) || '0.00'}</span>
+                  )}
+                  
+                  <div className="p-6">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{product.title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {product.article} • {product.category}
+                        </p>
                       </div>
-                    )}
-                    
-                    {/* Cost */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Cost:</span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">£{product.cost_after?.toFixed(2) || '0.00'}</span>
                     </div>
 
-                    {/* Stock */}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Stock:</span>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${
-                          (product.stock_quantity || 0) < (product.min_stock_level || 5) 
-                            ? 'text-red-600' 
-                            : (product.stock_quantity || 0) < (product.min_stock_level || 5) * 2
-                              ? 'text-yellow-600' 
-                              : 'text-green-600'
-                        }`}>
-                          {product.stock_quantity || 0} units
-                        </span>
-                        {(product.stock_quantity || 0) < (product.min_stock_level || 5) && (
-                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                    {/* Attributes */}
+                    {product.attributes && Array.isArray(product.attributes) && product.attributes.length > 0 && (
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1">
+                          {product.attributes.map((attr: string, index: number) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded"
+                            >
+                              {attr}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Attribute Values */}
+                    {product.attributeValues && typeof product.attributeValues === 'object' && Object.keys(product.attributeValues).length > 0 && (
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(product.attributeValues).map(([key, values]) => (
+                            Array.isArray(values) && values.map((value, index) => (
+                              <span
+                                key={`${key}-${index}`}
+                                className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded"
+                              >
+                                {key}: {value}
+                              </span>
+                            ))
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Package className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {stats.variantCount}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Variants</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Package className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {stats.totalQty}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Total Qty</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <DollarSign className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          £{stats.retail.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Retail Price</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <DollarSign className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          £{stats.wholesale.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Wholesale</div>
+                      </div>
+                    </div>
+
+                    {/* Sample Variants */}
+                    <div className="mb-4">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Sample SKUs:</div>
+                      <div className="space-y-1">
+                        {product.variations && product.variations.length > 0 ? (
+                          <>
+                            {product.variations.slice(0, 2).map((variant: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between text-xs">
+                                <span className="font-mono text-gray-700 dark:text-gray-300">
+                                  {variant.sku || `${product.article}-${index + 1}`}
+                                </span>
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  Qty: {variant.stock || 0}
+                                </span>
+                              </div>
+                            ))}
+                            {product.variations.length > 2 && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                +{product.variations.length - 2} more variants
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-mono text-gray-700 dark:text-gray-300">
+                              {product.article}
+                            </span>
+                            <span className="text-gray-500 dark:text-gray-400">
+                              Qty: {product.stock_quantity || 0}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Profit Margin */}
-                    {product.retail && product.cost_after && (
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Profit:</span>
-                        <span className="text-sm font-medium text-blue-600">
-                          £{(product.retail - product.cost_after).toFixed(2)} 
-                          <span className="text-xs ml-1">
-                            ({(((product.retail - product.cost_after) / product.retail) * 100).toFixed(1)}%)
-                          </span>
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Stock Status Badge */}
-                    <div className="pt-2">
-                      <Badge 
-                        variant={
-                          (product.stock_quantity || 0) === 0 
-                            ? 'destructive' 
-                            : (product.stock_quantity || 0) < (product.min_stock_level || 5)
-                              ? 'secondary' 
-                              : 'default'
-                        }
-                        className="w-full justify-center"
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => router.push(`/dashboard/insole/products/${product.id}/edit`)}
+                        className="flex items-center px-3 py-1 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30"
                       >
-                        {(product.stock_quantity || 0) === 0 
-                          ? 'Out of Stock' 
-                          : (product.stock_quantity || 0) < (product.min_stock_level || 5)
-                            ? 'Low Stock' 
-                            : 'In Stock'
-                        }
-                      </Badge>
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(product.id)}
+                        className="flex items-center px-3 py-1 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete
+                      </button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

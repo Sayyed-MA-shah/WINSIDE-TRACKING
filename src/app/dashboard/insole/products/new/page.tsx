@@ -219,15 +219,16 @@ export default function NewInsoleProduct() {
       newErrors.category = 'Category is required';
     }
 
-    if (!formData.retail) {
-      newErrors.retail = 'Retail price is required';
-    } else if (isNaN(Number(formData.retail)) || Number(formData.retail) <= 0) {
+    // Pricing is optional - only validate if provided
+    if (formData.retail && (isNaN(Number(formData.retail)) || Number(formData.retail) <= 0)) {
       newErrors.retail = 'Retail price must be a valid positive number';
     }
 
-    if (!formData.cost_after) {
-      newErrors.cost_after = 'Cost is required';
-    } else if (isNaN(Number(formData.cost_after)) || Number(formData.cost_after) < 0) {
+    if (formData.wholesale && (isNaN(Number(formData.wholesale)) || Number(formData.wholesale) <= 0)) {
+      newErrors.wholesale = 'Wholesale price must be a valid positive number';
+    }
+
+    if (formData.cost_after && (isNaN(Number(formData.cost_after)) || Number(formData.cost_after) < 0)) {
       newErrors.cost_after = 'Cost must be a valid number';
     }
 
@@ -408,13 +409,13 @@ export default function NewInsoleProduct() {
               <CardHeader>
                 <CardTitle>Pricing & Stock Information</CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Configure pricing tiers and stock levels for this product.
+                  Configure pricing tiers and stock levels for this product. All pricing fields are optional.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="wholesale">Wholesale Price (£)</Label>
+                    <Label htmlFor="wholesale">Wholesale Price (£) - Optional</Label>
                     <Input
                       id="wholesale"
                       name="wholesale"
@@ -428,7 +429,7 @@ export default function NewInsoleProduct() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="retail">Retail Price * (£)</Label>
+                    <Label htmlFor="retail">Retail Price (£) - Optional</Label>
                     <Input
                       id="retail"
                       name="retail"
@@ -448,7 +449,7 @@ export default function NewInsoleProduct() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="cost_before">Cost Before (£)</Label>
+                    <Label htmlFor="cost_before">Cost Before (£) - Optional</Label>
                     <Input
                       id="cost_before"
                       name="cost_before"
@@ -462,7 +463,7 @@ export default function NewInsoleProduct() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="cost_after">Cost After * (£)</Label>
+                    <Label htmlFor="cost_after">Cost After (£) - Optional</Label>
                     <Input
                       id="cost_after"
                       name="cost_after"
