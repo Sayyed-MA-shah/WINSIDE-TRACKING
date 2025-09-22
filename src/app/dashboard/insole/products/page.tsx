@@ -59,8 +59,10 @@ export default function InsoleProducts() {
   };
 
   const filteredProducts = products.filter(product =>
-    product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+    product.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.article?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.brand?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!user) {
@@ -151,12 +153,13 @@ export default function InsoleProducts() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg">{product.name}</CardTitle>
-                      {product.sku && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          SKU: {product.sku}
-                        </p>
-                      )}
+                      <CardTitle className="text-lg">{product.title}</CardTitle>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Article: {product.article}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-500">
+                        {product.category} • {product.brand}
+                      </p>
                     </div>
                     <div className="flex gap-1">
                       <Button
@@ -178,23 +181,25 @@ export default function InsoleProducts() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {product.description && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-                      {product.description}
-                    </p>
-                  )}
-                  
                   <div className="space-y-3">
                     {/* Pricing */}
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Price:</span>
-                      <span className="text-lg font-bold text-green-600">£{product.price?.toFixed(2) || '0.00'}</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Retail Price:</span>
+                      <span className="text-lg font-bold text-green-600">£{product.retail?.toFixed(2) || '0.00'}</span>
                     </div>
+                    
+                    {/* Wholesale Price */}
+                    {product.wholesale > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Wholesale:</span>
+                        <span className="text-sm font-medium text-blue-600">£{product.wholesale?.toFixed(2) || '0.00'}</span>
+                      </div>
+                    )}
                     
                     {/* Cost */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Cost:</span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">£{product.cost?.toFixed(2) || '0.00'}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">£{product.cost_after?.toFixed(2) || '0.00'}</span>
                     </div>
 
                     {/* Stock */}
@@ -202,28 +207,28 @@ export default function InsoleProducts() {
                       <span className="text-sm text-gray-600 dark:text-gray-400">Stock:</span>
                       <div className="flex items-center gap-2">
                         <span className={`text-sm font-medium ${
-                          (product.stock || 0) < 10 
+                          (product.stock_quantity || 0) < (product.min_stock_level || 5) 
                             ? 'text-red-600' 
-                            : (product.stock || 0) < 20 
+                            : (product.stock_quantity || 0) < (product.min_stock_level || 5) * 2
                               ? 'text-yellow-600' 
                               : 'text-green-600'
                         }`}>
-                          {product.stock || 0} units
+                          {product.stock_quantity || 0} units
                         </span>
-                        {(product.stock || 0) < 10 && (
+                        {(product.stock_quantity || 0) < (product.min_stock_level || 5) && (
                           <AlertTriangle className="h-4 w-4 text-red-500" />
                         )}
                       </div>
                     </div>
 
                     {/* Profit Margin */}
-                    {product.price && product.cost && (
+                    {product.retail && product.cost_after && (
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm text-gray-600 dark:text-gray-400">Profit:</span>
                         <span className="text-sm font-medium text-blue-600">
-                          £{(product.price - product.cost).toFixed(2)} 
+                          £{(product.retail - product.cost_after).toFixed(2)} 
                           <span className="text-xs ml-1">
-                            ({(((product.price - product.cost) / product.price) * 100).toFixed(1)}%)
+                            ({(((product.retail - product.cost_after) / product.retail) * 100).toFixed(1)}%)
                           </span>
                         </span>
                       </div>
@@ -233,17 +238,17 @@ export default function InsoleProducts() {
                     <div className="pt-2">
                       <Badge 
                         variant={
-                          (product.stock || 0) === 0 
+                          (product.stock_quantity || 0) === 0 
                             ? 'destructive' 
-                            : (product.stock || 0) < 10 
+                            : (product.stock_quantity || 0) < (product.min_stock_level || 5)
                               ? 'secondary' 
                               : 'default'
                         }
                         className="w-full justify-center"
                       >
-                        {(product.stock || 0) === 0 
+                        {(product.stock_quantity || 0) === 0 
                           ? 'Out of Stock' 
-                          : (product.stock || 0) < 10 
+                          : (product.stock_quantity || 0) < (product.min_stock_level || 5)
                             ? 'Low Stock' 
                             : 'In Stock'
                         }

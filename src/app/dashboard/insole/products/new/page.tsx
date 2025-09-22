@@ -15,15 +15,7 @@ import {
   Package
 } from 'lucide-react';
 import { useInsoleAuth } from '@/lib/context/insole-auth';
-import { getInsoleProducts, addInsoleProduct, getInsoleProductAttributes } from '@/lib/db/insole-db';
-
-interface ProductAttribute {
-  id: string;
-  name: string;
-  type: 'text' | 'number' | 'select' | 'multiselect';
-  options: string[];
-  required: boolean;
-}
+import { getInsoleProducts, addInsoleProduct } from '@/lib/db/insole-db';
 
 interface Variation {
   name: string;
@@ -74,7 +66,6 @@ export default function NewInsoleProduct() {
   const router = useRouter();
   const { user } = useInsoleAuth();
   const [loading, setLoading] = useState(false);
-  const [availableAttributes, setAvailableAttributes] = useState<ProductAttribute[]>([]);
   
   const [formData, setFormData] = useState({
     article: '',
@@ -99,24 +90,7 @@ export default function NewInsoleProduct() {
       router.push('/dashboard');
       return;
     }
-    fetchAvailableAttributes();
   }, [user, router]);
-
-  const fetchAvailableAttributes = async () => {
-    try {
-      const attributes = await getInsoleProductAttributes();
-      setAvailableAttributes(attributes);
-      console.log('Available attributes:', attributes);
-    } catch (error) {
-      console.error('Error fetching attributes:', error);
-      // Set default attributes if fetch fails
-      setAvailableAttributes([
-        { id: '1', name: 'Size', type: 'select', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], required: true },
-        { id: '2', name: 'Color', type: 'select', options: ['Black', 'White', 'Brown', 'Blue'], required: false },
-        { id: '3', name: 'Material', type: 'select', options: ['Leather', 'Fabric', 'Memory Foam', 'Gel'], required: false }
-      ]);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -193,12 +167,10 @@ export default function NewInsoleProduct() {
       newErrors.stock_quantity = 'Stock must be a valid number';
     }
 
-    // Validate required attributes
-    availableAttributes.forEach(attr => {
-      if (attr.required && !productAttributes[attr.name]) {
-        newErrors[`attr_${attr.name}`] = `${attr.name} is required`;
-      }
-    });
+    // Validate required attributes (Size is required)
+    if (!productAttributes.size) {
+      newErrors.attr_size = 'Size is required';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -359,56 +331,107 @@ export default function NewInsoleProduct() {
               </CardContent>
             </Card>
 
-            {/* Product Attributes */}
-            {availableAttributes.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Product Attributes</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {availableAttributes.map((attr) => (
-                    <div key={attr.id} className="space-y-2">
-                      <Label htmlFor={`attr_${attr.name}`}>
-                        {attr.name} {attr.required && '*'}
-                      </Label>
-                      
-                      {attr.type === 'text' && (
-                        <Input
-                          id={`attr_${attr.name}`}
-                          value={productAttributes[attr.name] || ''}
-                          onChange={(e) => handleAttributeChange(attr.name, e.target.value)}
-                          className={errors[`attr_${attr.name}`] ? 'border-red-500' : ''}
-                        />
-                      )}
-                      
-                      {attr.type === 'number' && (
-                        <Input
-                          id={`attr_${attr.name}`}
-                          type="number"
-                          value={productAttributes[attr.name] || ''}
-                          onChange={(e) => handleAttributeChange(attr.name, e.target.value)}
-                          className={errors[`attr_${attr.name}`] ? 'border-red-500' : ''}
-                        />
-                      )}
-                      
-                      {attr.type === 'select' && (
-                        <SimpleSelect
-                          value={productAttributes[attr.name] || ''}
-                          onValueChange={(value) => handleAttributeChange(attr.name, value)}
-                          placeholder={`Select ${attr.name.toLowerCase()}`}
-                          options={attr.options.map(opt => ({ value: opt, label: opt }))}
-                          className={errors[`attr_${attr.name}`] ? 'border-red-500' : ''}
-                        />
-                      )}
-                      
-                      {errors[`attr_${attr.name}`] && (
-                        <p className="text-sm text-red-600">{errors[`attr_${attr.name}`]}</p>
-                      )}
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            {/* Simple Product Attributes */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Product Attributes</CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Add basic product attributes like size, color, and material.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="size">Size</Label>
+                    <SimpleSelect
+                      value={productAttributes.size || ''}
+                      onValueChange={(value) => handleAttributeChange('size', value)}
+                      placeholder="Select size"
+                      options={[
+                        { value: 'XS', label: 'Extra Small (XS)' },
+                        { value: 'S', label: 'Small (S)' },
+                        { value: 'M', label: 'Medium (M)' },
+                        { value: 'L', label: 'Large (L)' },
+                        { value: 'XL', label: 'Extra Large (XL)' },
+                        { value: 'XXL', label: 'Double XL (XXL)' },
+                        { value: 'Custom', label: 'Custom Size' }
+                      ]}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="color">Color</Label>
+                    <SimpleSelect
+                      value={productAttributes.color || ''}
+                      onValueChange={(value) => handleAttributeChange('color', value)}
+                      placeholder="Select color"
+                      options={[
+                        { value: 'Black', label: 'Black' },
+                        { value: 'White', label: 'White' },
+                        { value: 'Brown', label: 'Brown' },
+                        { value: 'Blue', label: 'Blue' },
+                        { value: 'Red', label: 'Red' },
+                        { value: 'Green', label: 'Green' },
+                        { value: 'Grey', label: 'Grey' },
+                        { value: 'Navy', label: 'Navy' },
+                        { value: 'Beige', label: 'Beige' }
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="material">Material</Label>
+                    <SimpleSelect
+                      value={productAttributes.material || ''}
+                      onValueChange={(value) => handleAttributeChange('material', value)}
+                      placeholder="Select material"
+                      options={[
+                        { value: 'Memory Foam', label: 'Memory Foam' },
+                        { value: 'Gel', label: 'Gel' },
+                        { value: 'Leather', label: 'Leather' },
+                        { value: 'Fabric', label: 'Fabric' },
+                        { value: 'Synthetic', label: 'Synthetic' },
+                        { value: 'Cork', label: 'Cork' },
+                        { value: 'Rubber', label: 'Rubber' },
+                        { value: 'Silicone', label: 'Silicone' }
+                      ]}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="arch_support">Arch Support</Label>
+                    <SimpleSelect
+                      value={productAttributes.arch_support || ''}
+                      onValueChange={(value) => handleAttributeChange('arch_support', value)}
+                      placeholder="Select arch support level"
+                      options={[
+                        { value: 'Low', label: 'Low Support' },
+                        { value: 'Medium', label: 'Medium Support' },
+                        { value: 'High', label: 'High Support' },
+                        { value: 'Custom', label: 'Custom Support' }
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Product Description</Label>
+                  <textarea
+                    id="description"
+                    value={productAttributes.description || ''}
+                    onChange={(e) => handleAttributeChange('description', e.target.value)}
+                    placeholder="Describe the product features, benefits, and use cases..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    This will help customers understand your product better
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Pricing */}
             <Card>
