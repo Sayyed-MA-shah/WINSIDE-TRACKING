@@ -5,9 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useInsoleAuth } from '@/lib/context/insole-auth';
 import {
   LayoutDashboard,
   Package,
@@ -19,14 +23,32 @@ import {
   LogOut,
   Shield,
   User,
-  Database
+  Database,
+  Heart
 } from 'lucide-react';
 
 interface SidebarProps {
   children: React.ReactNode;
 }
 
-const navigation = [
+interface RegularNavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<any>;
+  isSpecial?: false;
+}
+
+interface SpecialNavItem {
+  name: string;
+  action: () => void;
+  icon: React.ComponentType<any>;
+  isSpecial: true;
+  isActive: boolean;
+}
+
+type NavItem = RegularNavItem | SpecialNavItem;
+
+const navigation: RegularNavItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
@@ -58,15 +80,46 @@ export function DashboardLayout({ children }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showInsoleLogin, setShowInsoleLogin] = useState(false);
+  const [insoleLoginForm, setInsoleLoginForm] = useState({ username: '', password: '', error: '' });
   const { user, logout, checkPermission } = useAuth();
+  const { user: insoleUser, login: insoleLogin, logout: insoleLogout } = useInsoleAuth();
 
   const handleLogout = () => {
     logout();
     router.push('/auth');
   };
 
+  const handleInsoleAccess = () => {
+    if (insoleUser) {
+      // Already logged into insole system, go to insole dashboard
+      router.push('/dashboard/insole');
+    } else {
+      // Show login dialog
+      setShowInsoleLogin(true);
+      setInsoleLoginForm({ username: '', password: '', error: '' });
+    }
+  };
+
+  const handleInsoleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInsoleLoginForm(prev => ({ ...prev, error: '' }));
+    
+    try {
+      await insoleLogin(insoleLoginForm.username, insoleLoginForm.password);
+      setShowInsoleLogin(false);
+      setInsoleLoginForm({ username: '', password: '', error: '' });
+      router.push('/dashboard/insole');
+    } catch (error) {
+      setInsoleLoginForm(prev => ({ 
+        ...prev, 
+        error: 'Invalid username or password' 
+      }));
+    }
+  };
+
   // Add admin navigation if user is admin
-  const adminNavigation = checkPermission('admin') ? [
+  const adminNavigation: RegularNavItem[] = checkPermission('admin') ? [
     {
       name: 'User Management',
       href: '/dashboard/admin/users',
@@ -79,7 +132,18 @@ export function DashboardLayout({ children }: SidebarProps) {
     }
   ] : [];
 
-  const allNavigation = [...navigation, ...adminNavigation];
+  // Add insole clinic access
+  const insoleNavigation: SpecialNavItem[] = [
+    {
+      name: 'INSOLE CLINIC',
+      action: handleInsoleAccess,
+      icon: Heart,
+      isSpecial: true,
+      isActive: pathname.startsWith('/dashboard/insole')
+    }
+  ];
+
+  const allNavigation: NavItem[] = [...navigation, ...adminNavigation, ...insoleNavigation];
 
   return (
     <AuthGuard>
@@ -127,7 +191,36 @@ export function DashboardLayout({ children }: SidebarProps) {
           <nav className="mt-8 flex-1">
             <div className="px-4 space-y-2">
               {allNavigation.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = item.isSpecial ? item.isActive : pathname === item.href;
+                
+                if (item.isSpecial) {
+                  // Special navigation item (like INSOLE CLINIC)
+                  return (
+                    <button
+                      key={item.name}
+                      onClick={() => {
+                        item.action();
+                        if (sidebarOpen) {
+                          setSidebarOpen(false);
+                        }
+                      }}
+                      className={cn(
+                        'w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors group',
+                        isActive
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'
+                      )}
+                    >
+                      <item.icon className="h-5 w-5 mr-3" />
+                      {item.name}
+                      {insoleUser && (
+                        <span className="ml-auto w-2 h-2 bg-green-500 rounded-full"></span>
+                      )}
+                    </button>
+                  );
+                }
+                
+                // Regular navigation item
                 return (
                   <Link
                     key={item.name}
@@ -221,6 +314,59 @@ export function DashboardLayout({ children }: SidebarProps) {
             {children}
           </main>
         </div>
+
+        {/* Insole Login Dialog */}
+        <Dialog open={showInsoleLogin} onOpenChange={setShowInsoleLogin}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Heart className="h-5 w-5 text-red-500" />
+                INSOLE CLINIC Access
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleInsoleLogin} className="space-y-4">
+              {insoleLoginForm.error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                  {insoleLoginForm.error}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="insole-username">Username</Label>
+                <Input
+                  id="insole-username"
+                  type="text"
+                  value={insoleLoginForm.username}
+                  onChange={(e) => setInsoleLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                  placeholder="Enter your username"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="insole-password">Password</Label>
+                <Input
+                  id="insole-password"
+                  type="password"
+                  value={insoleLoginForm.password}
+                  onChange={(e) => setInsoleLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowInsoleLogin(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Login to INSOLE CLINIC
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </AuthGuard>
   );

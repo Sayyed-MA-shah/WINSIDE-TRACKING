@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./extension-overrides.css";
 import { HydrationSafe } from "@/components/ClientOnly";
+import { InsoleAuthProvider } from "@/lib/context/insole-auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +32,9 @@ export default function RootLayout({
         suppressHydrationWarning={true}
       >
         <HydrationSafe>
-          {children}
+          <InsoleAuthProvider>
+            {children}
+          </InsoleAuthProvider>
         </HydrationSafe>
       </body>
     </html>
