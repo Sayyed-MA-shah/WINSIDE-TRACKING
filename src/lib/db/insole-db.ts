@@ -241,6 +241,40 @@ export const addInsoleCustomer = async (customer: Partial<InsoleCustomer>): Prom
   }
 };
 
+export const updateInsoleCustomer = async (id: string, updates: Partial<InsoleCustomer>): Promise<InsoleCustomer> => {
+  try {
+    const { data, error } = await supabase
+      .from('insole_customers')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return handleDatabaseError('updateInsoleCustomer', error);
+    }
+
+    return data;
+  } catch (error) {
+    return handleDatabaseError('updateInsoleCustomer', error);
+  }
+};
+
+export const deleteInsoleCustomer = async (id: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('insole_customers')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return handleDatabaseError('deleteInsoleCustomer', error);
+    }
+  } catch (error) {
+    return handleDatabaseError('deleteInsoleCustomer', error);
+  }
+};
+
 // ===============================
 // INSOLE INVOICES
 // ===============================
@@ -509,6 +543,8 @@ export const insoleDb = {
   // Customers
   getCustomers: getInsoleCustomers,
   addCustomer: addInsoleCustomer,
+  updateCustomer: updateInsoleCustomer,
+  deleteCustomer: deleteInsoleCustomer,
   
   // Invoices
   getInvoices: getInsoleInvoices,

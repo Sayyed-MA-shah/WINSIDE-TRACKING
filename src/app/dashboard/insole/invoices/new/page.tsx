@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ interface InvoiceItem {
   total: number;
 }
 
-export default function NewInsoleInvoice() {
+function NewInsoleInvoiceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useInsoleAuth();
@@ -426,5 +426,24 @@ export default function NewInsoleInvoice() {
         </form>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+      <div className="text-center">
+        <Heart className="h-12 w-12 text-red-500 mx-auto mb-4 animate-pulse" />
+        <p className="text-gray-600 dark:text-gray-400">Loading invoice form...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function NewInsoleInvoice() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <NewInsoleInvoiceContent />
+    </Suspense>
   );
 }

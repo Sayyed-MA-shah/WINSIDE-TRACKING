@@ -28,7 +28,6 @@ CREATE TABLE IF NOT EXISTS public.insole_products (
     archived BOOLEAN DEFAULT false,
     wholesale DECIMAL(10,2) DEFAULT 0,
     retail DECIMAL(10,2) DEFAULT 0,
-    club DECIMAL(10,2) DEFAULT 0,
     cost_before DECIMAL(10,2) DEFAULT 0,
     cost_after DECIMAL(10,2) DEFAULT 0,
     stock_quantity INTEGER DEFAULT 0,
