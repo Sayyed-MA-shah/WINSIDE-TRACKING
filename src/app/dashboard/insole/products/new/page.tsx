@@ -19,31 +19,12 @@ import { getInsoleProducts, addInsoleProduct } from '@/lib/db/insole-db';
 
 interface Variation {
   name: string;
+  sku: string;
   price: number;
   cost: number;
   stock: number;
   attributes: Record<string, string>;
 }
-
-// Simple Select component for this form
-const SimpleSelect = ({ value, onValueChange, placeholder, options, className }: {
-  value: string;
-  onValueChange: (value: string) => void;
-  placeholder: string;
-  options: { value: string; label: string }[];
-  className?: string;
-}) => (
-  <select 
-    value={value} 
-    onChange={(e) => onValueChange(e.target.value)}
-    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
-  >
-    <option value="">{placeholder}</option>
-    {options.map((option) => (
-      <option key={option.value} value={option.value}>{option.label}</option>
-    ))}
-  </select>
-);
 
 // Simple Checkbox component
 const SimpleCheckbox = ({ checked, onCheckedChange, label }: {
@@ -81,7 +62,12 @@ export default function NewInsoleProduct() {
     min_stock_level: '5'
   });
 
-  const [productAttributes, setProductAttributes] = useState<Record<string, any>>({});
+  // WINSIDE-style attribute management
+  const [attributes, setAttributes] = useState<string[]>([]);
+  const [attributeValues, setAttributeValues] = useState<Record<string, string[]>>({});
+  const [newAttributeName, setNewAttributeName] = useState('');
+  const [attributeValueInputs, setAttributeValueInputs] = useState<Record<string, string>>({});
+  
   const [variations, setVariations] = useState<Variation[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -106,16 +92,100 @@ export default function NewInsoleProduct() {
     }
   };
 
-  const handleAttributeChange = (attributeName: string, value: any) => {
-    setProductAttributes(prev => ({
+  // WINSIDE-style attribute management functions
+  const addAttribute = () => {
+    if (newAttributeName.trim() && !attributes.includes(newAttributeName.trim())) {
+      const newAttr = newAttributeName.trim();
+      setAttributes([...attributes, newAttr]);
+      setAttributeValues(prev => ({
+        ...prev,
+        [newAttr]: []
+      }));
+      setAttributeValueInputs(prev => ({
+        ...prev,
+        [newAttr]: ''
+      }));
+      setNewAttributeName('');
+    }
+  };
+
+  const removeAttribute = (attributeName: string) => {
+    setAttributes(attributes.filter(attr => attr !== attributeName));
+    setAttributeValues(prev => {
+      const newValues = { ...prev };
+      delete newValues[attributeName];
+      return newValues;
+    });
+    setAttributeValueInputs(prev => {
+      const newInputs = { ...prev };
+      delete newInputs[attributeName];
+      return newInputs;
+    });
+  };
+
+  const updateAttributeValues = (attributeName: string, valuesString: string) => {
+    const values = valuesString
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v.length > 0);
+    
+    setAttributeValues(prev => ({
       ...prev,
-      [attributeName]: value
+      [attributeName]: values
     }));
+  };
+
+  // Generate all possible variant combinations
+  const generateVariants = () => {
+    if (attributes.length === 0) return;
+    
+    // Generate all combinations
+    const attrNames = attributes;
+    const attrValues = attrNames.map(name => attributeValues[name] || []);
+    
+    if (attrValues.some(values => values.length === 0)) {
+      alert('Please add values to all attributes before generating variants');
+      return;
+    }
+
+    const combinations: Array<Record<string, string>> = [];
+    
+    function generateCombinations(index: number, current: Record<string, string>) {
+      if (index === attrNames.length) {
+        combinations.push({ ...current });
+        return;
+      }
+      
+      for (const value of attrValues[index]) {
+        current[attrNames[index]] = value;
+        generateCombinations(index + 1, current);
+      }
+    }
+    
+    generateCombinations(0, {});
+    
+    // Convert combinations to variations
+    const newVariations = combinations.map((combo, index) => {
+      const variantName = Object.entries(combo).map(([key, value]) => value).join(' ');
+      const sku = `${formData.article}-${Object.values(combo).join('-')}`;
+      
+      return {
+        name: variantName,
+        sku: sku,
+        price: Number(formData.retail) || 0,
+        cost: Number(formData.cost_after) || 0,
+        stock: 0,
+        attributes: combo
+      };
+    });
+    
+    setVariations(newVariations);
   };
 
   const addVariation = () => {
     const newVariation: Variation = {
       name: `Variation ${variations.length + 1}`,
+      sku: `${formData.article}-VAR${variations.length + 1}`,
       price: Number(formData.retail) || 0,
       cost: Number(formData.cost_after) || 0,
       stock: 0,
@@ -167,10 +237,7 @@ export default function NewInsoleProduct() {
       newErrors.stock_quantity = 'Stock must be a valid number';
     }
 
-    // Validate required attributes (Size is required)
-    if (!productAttributes.size) {
-      newErrors.attr_size = 'Size is required';
-    }
+    // No required attribute validation needed since we removed the attributes section
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -190,7 +257,8 @@ export default function NewInsoleProduct() {
         category: formData.category.trim(),
         brand: formData.brand.trim() || 'INSOLE CLINIC',
         taxable: formData.taxable,
-        attributes: productAttributes,
+        attributes: attributes,
+        attributeValues: attributeValues,
         variations: variations,
         wholesale: Number(formData.wholesale) || 0,
         retail: Number(formData.retail),
@@ -299,13 +367,17 @@ export default function NewInsoleProduct() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <SimpleSelect
+                    <select
+                      id="category"
                       value={formData.category}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-                      placeholder="Select category"
-                      options={categoryOptions}
-                      className={errors.category ? 'border-red-500' : ''}
-                    />
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${errors.category ? 'border-red-500' : ''}`}
+                    >
+                      <option value="">Select category</option>
+                      {categoryOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
                     {errors.category && (
                       <p className="text-sm text-red-600">{errors.category}</p>
                     )}
@@ -328,108 +400,6 @@ export default function NewInsoleProduct() {
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, taxable: checked }))}
                   label="Taxable item"
                 />
-              </CardContent>
-            </Card>
-
-            {/* Simple Product Attributes */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Product Attributes</CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Add basic product attributes like size, color, and material.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="size">Size</Label>
-                    <SimpleSelect
-                      value={productAttributes.size || ''}
-                      onValueChange={(value) => handleAttributeChange('size', value)}
-                      placeholder="Select size"
-                      options={[
-                        { value: 'XS', label: 'Extra Small (XS)' },
-                        { value: 'S', label: 'Small (S)' },
-                        { value: 'M', label: 'Medium (M)' },
-                        { value: 'L', label: 'Large (L)' },
-                        { value: 'XL', label: 'Extra Large (XL)' },
-                        { value: 'XXL', label: 'Double XL (XXL)' },
-                        { value: 'Custom', label: 'Custom Size' }
-                      ]}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="color">Color</Label>
-                    <SimpleSelect
-                      value={productAttributes.color || ''}
-                      onValueChange={(value) => handleAttributeChange('color', value)}
-                      placeholder="Select color"
-                      options={[
-                        { value: 'Black', label: 'Black' },
-                        { value: 'White', label: 'White' },
-                        { value: 'Brown', label: 'Brown' },
-                        { value: 'Blue', label: 'Blue' },
-                        { value: 'Red', label: 'Red' },
-                        { value: 'Green', label: 'Green' },
-                        { value: 'Grey', label: 'Grey' },
-                        { value: 'Navy', label: 'Navy' },
-                        { value: 'Beige', label: 'Beige' }
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="material">Material</Label>
-                    <SimpleSelect
-                      value={productAttributes.material || ''}
-                      onValueChange={(value) => handleAttributeChange('material', value)}
-                      placeholder="Select material"
-                      options={[
-                        { value: 'Memory Foam', label: 'Memory Foam' },
-                        { value: 'Gel', label: 'Gel' },
-                        { value: 'Leather', label: 'Leather' },
-                        { value: 'Fabric', label: 'Fabric' },
-                        { value: 'Synthetic', label: 'Synthetic' },
-                        { value: 'Cork', label: 'Cork' },
-                        { value: 'Rubber', label: 'Rubber' },
-                        { value: 'Silicone', label: 'Silicone' }
-                      ]}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="arch_support">Arch Support</Label>
-                    <SimpleSelect
-                      value={productAttributes.arch_support || ''}
-                      onValueChange={(value) => handleAttributeChange('arch_support', value)}
-                      placeholder="Select arch support level"
-                      options={[
-                        { value: 'Low', label: 'Low Support' },
-                        { value: 'Medium', label: 'Medium Support' },
-                        { value: 'High', label: 'High Support' },
-                        { value: 'Custom', label: 'Custom Support' }
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Product Description</Label>
-                  <textarea
-                    id="description"
-                    value={productAttributes.description || ''}
-                    onChange={(e) => handleAttributeChange('description', e.target.value)}
-                    placeholder="Describe the product features, benefits, and use cases..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    This will help customers understand your product better
-                  </p>
-                </div>
               </CardContent>
             </Card>
 
@@ -585,32 +555,128 @@ export default function NewInsoleProduct() {
               </CardContent>
             </Card>
 
-            {/* Product Variations */}
+            {/* Product Attributes & Variations */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Product Variations
+                  Product Attributes
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Create variations for different sizes, colors, materials, or other product attributes. Each variation can have its own pricing and stock levels.
+                  Create dynamic attributes (e.g., Size, Color) with values to auto-generate product variations.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Variations ({variations.length})</h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {variations.length === 0 ? 'No variations created yet' : `${variations.length} variation${variations.length > 1 ? 's' : ''} defined`}
-                    </p>
+              <CardContent className="space-y-6">
+                {/* Add New Attribute */}
+                <div className="space-y-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="new-attribute">Add Attribute</Label>
+                      <Input
+                        id="new-attribute"
+                        value={newAttributeName}
+                        onChange={(e) => setNewAttributeName(e.target.value)}
+                        placeholder="e.g., Size, Color, Material"
+                        onKeyPress={(e) => e.key === 'Enter' && addAttribute()}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={addAttribute}
+                      disabled={!newAttributeName.trim()}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </Button>
                   </div>
-                  <Button type="button" variant="outline" onClick={addVariation} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Variation
-                  </Button>
                 </div>
 
-                {variations.length > 0 && (
+                {/* Existing Attributes */}
+                {attributes.length > 0 && (
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900 dark:text-white">Attributes ({attributes.length})</h4>
+                    {attributes.map((attributeName) => (
+                      <div key={attributeName} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h5 className="font-medium text-gray-900 dark:text-white">{attributeName}</h5>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAttribute(attributeName)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`values-${attributeName}`}>
+                            Values (comma separated)
+                          </Label>
+                          <Input
+                            id={`values-${attributeName}`}
+                            value={attributeValueInputs[attributeName] || ''}
+                            onChange={(e) => {
+                              setAttributeValueInputs(prev => ({
+                                ...prev,
+                                [attributeName]: e.target.value
+                              }));
+                              updateAttributeValues(attributeName, e.target.value);
+                            }}
+                            placeholder="e.g., Small, Medium, Large or Red, Blue, Green"
+                          />
+                          {attributeValues[attributeName]?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {attributeValues[attributeName].map((value, index) => (
+                                <span
+                                  key={index}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                >
+                                  {value}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Generate Variations Button */}
+                {attributes.length > 0 && (
+                  <div className="border-t pt-4">
+                    <Button
+                      type="button"
+                      onClick={generateVariants}
+                      className="w-full gap-2"
+                      variant="outline"
+                    >
+                      <Package className="h-4 w-4" />
+                      Generate All Variations
+                    </Button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                      This will create variations for all possible combinations of your attributes
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Generated Variations */}
+            {variations.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Product Variations ({variations.length})
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Generated variations based on your attributes. You can adjust pricing and stock for each variation.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-4">
                     {variations.map((variation, index) => (
                       <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4 bg-gray-50 dark:bg-gray-800/50">
@@ -621,9 +687,14 @@ export default function NewInsoleProduct() {
                                 {index + 1}
                               </span>
                             </div>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                              {variation.name || `Variation ${index + 1}`}
-                            </h4>
+                            <div>
+                              <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                {variation.name}
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                SKU: {variation.sku}
+                              </p>
+                            </div>
                           </div>
                           <Button
                             type="button"
@@ -636,17 +707,21 @@ export default function NewInsoleProduct() {
                           </Button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`variation-name-${index}`}>Variation Name *</Label>
-                            <Input
-                              id={`variation-name-${index}`}
-                              placeholder="e.g., Small Blue, Large Red, Size 8"
-                              value={variation.name}
-                              onChange={(e) => updateVariation(index, 'name', e.target.value)}
-                              className="bg-white dark:bg-gray-900"
-                            />
+                        {/* Attribute Display */}
+                        {Object.keys(variation.attributes).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(variation.attributes).map(([key, value]) => (
+                              <span
+                                key={key}
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              >
+                                {key}: {value}
+                              </span>
+                            ))}
                           </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor={`variation-price-${index}`}>Retail Price (£) *</Label>
                             <Input
@@ -701,17 +776,139 @@ export default function NewInsoleProduct() {
                       </div>
                     ))}
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                {variations.length === 0 && (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg font-medium mb-2">No variations yet</p>
-                    <p className="text-sm">Click "Add Variation" to create different product variants</p>
+            {/* Manual Variation Option */}
+            {attributes.length === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Manual Variations
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    If you don't need dynamic attributes, you can manually add individual variations.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Variations ({variations.length})</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {variations.length === 0 ? 'No variations created yet' : `${variations.length} variation${variations.length > 1 ? 's' : ''} defined`}
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={addVariation} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add Manual Variation
+                    </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {variations.length > 0 && (
+                    <div className="space-y-4">
+                      {variations.map((variation, index) => (
+                        <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4 bg-gray-50 dark:bg-gray-800/50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                  {index + 1}
+                                </span>
+                              </div>
+                              <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                {variation.name || `Variation ${index + 1}`}
+                              </h4>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeVariation(index)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`variation-name-${index}`}>Variation Name *</Label>
+                              <Input
+                                id={`variation-name-${index}`}
+                                placeholder="e.g., Small Blue, Large Red, Size 8"
+                                value={variation.name}
+                                onChange={(e) => updateVariation(index, 'name', e.target.value)}
+                                className="bg-white dark:bg-gray-900"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`variation-price-${index}`}>Retail Price (£) *</Label>
+                              <Input
+                                id={`variation-price-${index}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={variation.price || ''}
+                                onChange={(e) => updateVariation(index, 'price', e.target.value ? Number(e.target.value) : 0)}
+                                className="bg-white dark:bg-gray-900"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`variation-cost-${index}`}>Cost Price (£)</Label>
+                              <Input
+                                id={`variation-cost-${index}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={variation.cost || ''}
+                                onChange={(e) => updateVariation(index, 'cost', e.target.value ? Number(e.target.value) : 0)}
+                                className="bg-white dark:bg-gray-900"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`variation-stock-${index}`}>Stock Quantity</Label>
+                              <Input
+                                id={`variation-stock-${index}`}
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={variation.stock || ''}
+                                onChange={(e) => updateVariation(index, 'stock', e.target.value ? Number(e.target.value) : 0)}
+                                className="bg-white dark:bg-gray-900"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Profit Margin Calculation */}
+                          {variation.price && variation.cost && (
+                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-blue-700 dark:text-blue-300">Profit Margin:</span>
+                                <span className="font-medium text-blue-900 dark:text-blue-100">
+                                  £{(variation.price - variation.cost).toFixed(2)} ({((variation.price - variation.cost) / variation.price * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {variations.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium mb-2">No variations yet</p>
+                      <p className="text-sm">Create dynamic attributes above or add manual variations</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Database Setup Notice */}
             <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
