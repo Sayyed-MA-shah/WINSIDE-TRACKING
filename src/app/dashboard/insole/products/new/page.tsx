@@ -423,11 +423,8 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.wholesale}
                       onChange={handleChange}
-                      placeholder="e.g., 15.00 (bulk/trade price)"
+                      placeholder="e.g., 15.00"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Price for bulk orders or trade customers
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -440,12 +437,9 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.retail}
                       onChange={handleChange}
-                      placeholder="e.g., 25.00 (customer price)"
+                      placeholder="e.g., 25.00"
                       className={errors.retail ? 'border-red-500' : ''}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Price charged to end customers
-                    </p>
                     {errors.retail && (
                       <p className="text-sm text-red-600">{errors.retail}</p>
                     )}
@@ -463,11 +457,8 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.cost_before}
                       onChange={handleChange}
-                      placeholder="e.g., 8.00 (original cost)"
+                      placeholder="e.g., 8.00"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Your original purchase cost per unit
-                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -480,12 +471,9 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.cost_after}
                       onChange={handleChange}
-                      placeholder="e.g., 10.00 (current cost)"
+                      placeholder="e.g., 10.00"
                       className={errors.cost_after ? 'border-red-500' : ''}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Current cost including any adjustments
-                    </p>
                     {errors.cost_after && (
                       <p className="text-sm text-red-600">{errors.cost_after}</p>
                     )}
@@ -502,12 +490,9 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.stock_quantity}
                       onChange={handleChange}
-                      placeholder="e.g., 50 (units in stock)"
+                      placeholder="e.g., 50"
                       className={errors.stock_quantity ? 'border-red-500' : ''}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      How many units are currently in stock
-                    </p>
                     {errors.stock_quantity && (
                       <p className="text-sm text-red-600">{errors.stock_quantity}</p>
                     )}
@@ -522,11 +507,8 @@ export default function NewInsoleProduct() {
                       min="0"
                       value={formData.min_stock_level}
                       onChange={handleChange}
-                      placeholder="e.g., 5 (reorder threshold)"
+                      placeholder="e.g., 5"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Alert when stock falls below this level
-                    </p>
                   </div>
                 </div>
 
@@ -909,21 +891,6 @@ export default function NewInsoleProduct() {
                 </CardContent>
               </Card>
             )}
-
-            {/* Database Setup Notice */}
-            <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-3">
-                  <Package className="h-5 w-5 text-yellow-600 mt-1" />
-                  <div>
-                    <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Database Setup Required</h4>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                      If you encounter errors when saving, please run the SQL from <code>insole-schema.sql</code> in your Supabase SQL Editor to create the required tables.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Form Actions */}
             <div className="flex gap-3 justify-end">
