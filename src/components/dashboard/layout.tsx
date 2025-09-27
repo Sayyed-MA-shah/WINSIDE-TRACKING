@@ -24,7 +24,8 @@ import {
   Shield,
   User,
   Database,
-  Heart
+  Heart,
+  Receipt
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -73,6 +74,11 @@ const navigation: RegularNavItem[] = [
     name: 'Invoices',
     href: '/dashboard/invoices',
     icon: FileText,
+  },
+  {
+    name: 'Generate Price List',
+    href: '/dashboard/price-list',
+    icon: Receipt,
   },
 ];
 
