@@ -30,6 +30,7 @@ interface PriceListFilters {
   priceType: 'retail' | 'wholesale' | 'club';
   brand: string;
   search: string;
+  includeVariations: boolean;
 }
 
 export default function PriceListPage() {
@@ -42,7 +43,8 @@ export default function PriceListPage() {
     category: 'all',
     priceType: 'retail',
     brand: 'all',
-    search: ''
+    search: '',
+    includeVariations: true // Default to include variations (current behavior)
   });
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export default function PriceListPage() {
         product.brand.toLowerCase().includes(filters.search.toLowerCase());
       
       if (matchesCategory && matchesBrand && matchesSearch) {
-        if (product.variants && product.variants.length > 0) {
+        if (filters.includeVariations && product.variants && product.variants.length > 0) {
           // Add all variants of this product
           product.variants.forEach(variant => {
             variants.push({
@@ -101,12 +103,12 @@ export default function PriceListPage() {
             });
           });
         } else {
-          // Add the main product if no variants
+          // Add only the main product (without variations) or if no variants exist
           variants.push({
             id: product.id,
             article: product.article,
             title: product.title,
-            sku: product.article, // Use article as SKU if no variants
+            sku: product.article, // Use article as SKU for main product
             category: product.category,
             brand: product.brand,
             wholesale: product.wholesale,
@@ -132,7 +134,7 @@ export default function PriceListPage() {
     setFilteredProducts(variants);
   };
 
-  const handleFilterChange = (key: keyof PriceListFilters, value: string) => {
+  const handleFilterChange = (key: keyof PriceListFilters, value: string | boolean) => {
     setFilters(prev => ({
       ...prev,
       [key]: value
@@ -213,11 +215,20 @@ export default function PriceListPage() {
       let currentY = margin;
       let currentPage = 1;
       
-      // Calculate column widths to fit within the 190mm available width
+      // Calculate column widths based on variations setting and RRP requirement
       const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
-      const colWidths = needsRRPColumn 
-        ? [20, 55, 40, 30, 22, 22] // With RRP column: Article, Product, SKU, Category, Wholesale, RRP (Total: 189mm)
-        : [28, 60, 43, 32, 25]; // Without RRP: Article, Product, SKU, Category, Price (Total: 188mm)
+      const includeSKU = filters.includeVariations; // Only show SKU when showing variations
+      
+      let colWidths: number[];
+      if (includeSKU && needsRRPColumn) {
+        colWidths = [20, 55, 40, 30, 22, 22]; // Article, Product, SKU, Category, Wholesale, RRP (Total: 189mm)
+      } else if (includeSKU && !needsRRPColumn) {
+        colWidths = [28, 60, 43, 32, 25]; // Article, Product, SKU, Category, Price (Total: 188mm)
+      } else if (!includeSKU && needsRRPColumn) {
+        colWidths = [25, 80, 40, 22, 22]; // Article, Product, Category, Wholesale, RRP (Total: 189mm)
+      } else {
+        colWidths = [35, 85, 40, 25]; // Article, Product, Category, Price (Total: 185mm)
+      }
       
       // Header function (only for first page)
       const addFirstPageHeader = (logoData?: string) => {
@@ -329,27 +340,31 @@ export default function PriceListPage() {
         pdf.setTextColor(255, 255, 255);
         
         let colX = margin + 2;
+        let colIndex = 0;
         
         pdf.text('ARTICLE', colX, currentY + 8);
-        colX += colWidths[0];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + 12);
         
         pdf.text('PRODUCT NAME', colX + 2, currentY + 8);
-        colX += colWidths[1];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + 12);
         
-        pdf.text('SKU', colX + 2, currentY + 8);
-        colX += colWidths[2];
-        
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + 12);
+        // Only show SKU column if including variations
+        if (includeSKU) {
+          pdf.text('SKU', colX + 2, currentY + 8);
+          colX += colWidths[colIndex++];
+          
+          // Vertical separator
+          pdf.line(colX, currentY, colX, currentY + 12);
+        }
         
         pdf.text('CATEGORY', colX + 2, currentY + 8);
-        colX += colWidths[3];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + 12);
@@ -366,7 +381,7 @@ export default function PriceListPage() {
         if (priceLabel.length > 10) {
           pdf.setFontSize(8); // Reset font size
         }
-        colX += colWidths[4];
+        colX += colWidths[colIndex++];
         
         // Add RRP column for wholesale and club
         if (needsRRPColumn) {
@@ -443,12 +458,13 @@ export default function PriceListPage() {
         pdf.setFont('helvetica', 'normal');
         
         let colX = margin + 2;
+        let colIndex = 0;
         
         // Article
         pdf.setTextColor(71, 85, 105);
         pdf.setFont('helvetica', 'bold');
         pdf.text(product.article, colX, currentY + 5);
-        colX += colWidths[0];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + rowHeight);
@@ -458,24 +474,26 @@ export default function PriceListPage() {
         pdf.setFont('helvetica', 'normal');
         const productName = product.title.length > 32 ? product.title.substring(0, 32) + '...' : product.title;
         pdf.text(productName, colX + 2, currentY + 5);
-        colX += colWidths[1];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + rowHeight);
         
-        // SKU (show only color and size part)
-        pdf.setTextColor(100, 116, 139);
-        pdf.text(getColorAndSize(product.sku), colX + 2, currentY + 5);
-        colX += colWidths[2];
-        
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + rowHeight);
+        // SKU (show only color and size part) - only if including variations
+        if (includeSKU) {
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(getColorAndSize(product.sku), colX + 2, currentY + 5);
+          colX += colWidths[colIndex++];
+          
+          // Vertical separator
+          pdf.line(colX, currentY, colX, currentY + rowHeight);
+        }
         
         // Category (truncate if too long)
         pdf.setTextColor(100, 116, 139);
         const categoryName = product.category.length > 12 ? product.category.substring(0, 12) + '...' : product.category;
         pdf.text(categoryName, colX + 2, currentY + 5);
-        colX += colWidths[3];
+        colX += colWidths[colIndex++];
         
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + rowHeight);
@@ -484,8 +502,8 @@ export default function PriceListPage() {
         pdf.setTextColor(16, 185, 129);
         pdf.setFont('helvetica', 'bold');
         const priceText = `£${getPrice(product).toFixed(2)}`;
-        pdf.text(priceText, colX + colWidths[4] - 15, currentY + 5);
-        colX += colWidths[4];
+        pdf.text(priceText, colX + colWidths[colIndex] - 15, currentY + 5);
+        colX += colWidths[colIndex++];
         
         // Add RRP column for wholesale and club
         if (needsRRPColumn) {
@@ -496,7 +514,7 @@ export default function PriceListPage() {
           pdf.setTextColor(75, 85, 99);
           pdf.setFont('helvetica', 'normal');
           const rrpText = `£${(product.retail || 0).toFixed(2)}`;
-          pdf.text(rrpText, colX + colWidths[5] - 15, currentY + 5);
+          pdf.text(rrpText, colX + colWidths[colIndex] - 15, currentY + 5);
         }
         
         currentY += rowHeight;
@@ -518,7 +536,13 @@ export default function PriceListPage() {
 
   const handleExport = () => {
     const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
-    const headers = ['Article', 'Product Name', 'SKU', 'Category', getPriceLabel()];
+    const includeSKU = filters.includeVariations; // Only show SKU when showing variations
+    
+    const headers = ['Article', 'Product Name'];
+    if (includeSKU) {
+      headers.push('SKU');
+    }
+    headers.push('Category', getPriceLabel());
     if (needsRRPColumn) {
       headers.push('RRP');
     }
@@ -529,11 +553,15 @@ export default function PriceListPage() {
       ...filteredProducts.map((product: any) => {
         const row = [
           product.article,
-          `"${product.title}"`,
-          product.sku,
+          `"${product.title}"`
+        ];
+        if (includeSKU) {
+          row.push(product.sku);
+        }
+        row.push(
           product.category,
           getPrice(product).toFixed(2)
-        ];
+        );
         if (needsRRPColumn) {
           row.push((product.retail || 0).toFixed(2));
         }
@@ -672,6 +700,31 @@ export default function PriceListPage() {
                   className="pl-9"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Variations Toggle */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="space-y-2">
+              <Label>Product Display</Label>
+              <Select 
+                value={filters.includeVariations ? 'variations' : 'main'} 
+                onValueChange={(value) => handleFilterChange('includeVariations', value === 'variations')}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select display type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="main">Main Products Only</SelectItem>
+                  <SelectItem value="variations">Include All Variations</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                {filters.includeVariations ? 
+                  'Showing all product variations with individual colors and sizes' : 
+                  'Showing only main products without variations'
+                }
+              </p>
             </div>
           </div>
 
