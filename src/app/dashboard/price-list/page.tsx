@@ -35,7 +35,7 @@ interface PriceListFilters {
 export default function PriceListPage() {
   const { user } = useAuth();
   const { products, isLoading } = useProducts();
-  const [filteredProducts, setFilteredProducts] = useState<ProductType[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [filters, setFilters] = useState<PriceListFilters>({
@@ -68,32 +68,68 @@ export default function PriceListPage() {
   };
 
   const applyFilters = () => {
-    let filtered = [...products];
+    const variants: any[] = [];
 
-    // Filter by category
-    if (filters.category !== 'all') {
-      filtered = filtered.filter(product => product.category === filters.category);
-    }
+    products.forEach(product => {
+      // Apply filters to main product first
+      const matchesCategory = filters.category === 'all' || product.category === filters.category;
+      const matchesBrand = filters.brand === 'all' || product.brand === filters.brand;
+      const matchesSearch = !filters.search || 
+        product.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+        product.article.toLowerCase().includes(filters.search.toLowerCase()) ||
+        product.brand.toLowerCase().includes(filters.search.toLowerCase());
+      
+      if (matchesCategory && matchesBrand && matchesSearch) {
+        if (product.variants && product.variants.length > 0) {
+          // Add all variants of this product
+          product.variants.forEach(variant => {
+            variants.push({
+              id: `${product.id}-${variant.sku}`,
+              article: product.article,
+              title: product.title,
+              sku: variant.sku,
+              category: product.category,
+              brand: product.brand,
+              // Use variant pricing if available, otherwise product pricing
+              wholesale: variant.wholesale ?? product.wholesale,
+              retail: variant.retail ?? product.retail,
+              club: variant.club ?? product.club,
+              qty: variant.qty,
+              attributes: variant.attributes || {},
+              // Keep getPrice compatible
+              variants: [variant] // Single variant for getPrice function
+            });
+          });
+        } else {
+          // Add the main product if no variants
+          variants.push({
+            id: product.id,
+            article: product.article,
+            title: product.title,
+            sku: product.article, // Use article as SKU if no variants
+            category: product.category,
+            brand: product.brand,
+            wholesale: product.wholesale,
+            retail: product.retail,
+            club: product.club,
+            qty: 0,
+            attributes: {},
+            variants: [] // Empty variants array
+          });
+        }
+      }
+    });
 
-    // Filter by brand
-    if (filters.brand !== 'all') {
-      filtered = filtered.filter(product => product.brand === filters.brand);
-    }
+    // Sort by title, then by SKU
+    variants.sort((a, b) => {
+      const titleCompare = a.title.localeCompare(b.title);
+      if (titleCompare === 0) {
+        return a.sku.localeCompare(b.sku);
+      }
+      return titleCompare;
+    });
 
-    // Filter by search term
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      filtered = filtered.filter(product => 
-        product.title.toLowerCase().includes(searchTerm) ||
-        product.article.toLowerCase().includes(searchTerm) ||
-        product.brand.toLowerCase().includes(searchTerm)
-      );
-    }
-
-    // Sort by title
-    filtered.sort((a, b) => a.title.localeCompare(b.title));
-
-    setFilteredProducts(filtered);
+    setFilteredProducts(variants);
   };
 
   const handleFilterChange = (key: keyof PriceListFilters, value: string) => {
@@ -149,13 +185,23 @@ export default function PriceListPage() {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const pageHeight = 297;
-      const margin = 20;
-      const contentWidth = pageWidth - (2 * margin);
+      const margin = 10; // Minimal margins for maximum table space
+      const contentWidth = pageWidth - (2 * margin); // 190mm available width
       const contentHeight = pageHeight - (2 * margin);
       
       const categoryText = filters.category === 'all' ? 'All Categories' : filters.category;
       const priceTypeText = filters.priceType.charAt(0).toUpperCase() + filters.priceType.slice(1);
       
+      // Helper function to extract color and size from SKU
+      const getColorAndSize = (sku: string): string => {
+        const parts = sku.split('-');
+        if (parts.length >= 3) {
+          // Return everything after the second hyphen (color and size)
+          return parts.slice(2).join('-');
+        }
+        return sku; // Return full SKU if format doesn't match expected pattern
+      };
+
       // Try to load logo
       let logoBase64: string | undefined;
       try {
@@ -166,6 +212,12 @@ export default function PriceListPage() {
       
       let currentY = margin;
       let currentPage = 1;
+      
+      // Calculate column widths to fit within the 190mm available width
+      const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
+      const colWidths = needsRRPColumn 
+        ? [20, 55, 40, 30, 22, 22] // With RRP column: Article, Product, SKU, Category, Wholesale, RRP (Total: 189mm)
+        : [28, 60, 43, 32, 25]; // Without RRP: Article, Product, SKU, Category, Price (Total: 188mm)
       
       // Header function (only for first page)
       const addFirstPageHeader = (logoData?: string) => {
@@ -276,8 +328,6 @@ export default function PriceListPage() {
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(255, 255, 255);
         
-        // Responsive column widths that fit within content area (170mm total)
-        const colWidths = [25, 60, 30, 30, 25]; // Total: 170mm exactly
         let colX = margin + 2;
         
         pdf.text('ARTICLE', colX, currentY + 8);
@@ -292,7 +342,7 @@ export default function PriceListPage() {
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + 12);
         
-        pdf.text('BRAND', colX + 2, currentY + 8);
+        pdf.text('SKU', colX + 2, currentY + 8);
         colX += colWidths[2];
         
         // Vertical separator
@@ -304,8 +354,27 @@ export default function PriceListPage() {
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + 12);
         
-        // Right-align price header within its column
-        pdf.text('PRICE (£)', colX + colWidths[4] - 18, currentY + 8);
+        // Price header
+        const priceLabel = filters.priceType === 'wholesale' ? 'WHOLESALE (£)' : 
+                          filters.priceType === 'club' ? 'CLUB PRICE (£)' : 'PRICE (£)';
+        
+        // Use smaller font for longer headers
+        if (priceLabel.length > 10) {
+          pdf.setFontSize(7);
+        }
+        pdf.text(priceLabel, colX + 2, currentY + 8);
+        if (priceLabel.length > 10) {
+          pdf.setFontSize(8); // Reset font size
+        }
+        colX += colWidths[4];
+        
+        // Add RRP column for wholesale and club
+        if (needsRRPColumn) {
+          // Vertical separator
+          pdf.line(colX, currentY, colX, currentY + 12);
+          
+          pdf.text('RRP (£)', colX + 2, currentY + 8);
+        }
         
         currentY += 12;
       };
@@ -347,7 +416,6 @@ export default function PriceListPage() {
       
       // Add products
       const rowHeight = 8;
-      const colWidths = [25, 60, 30, 30, 25]; // Responsive column widths that total exactly 170mm
       
       filteredProducts.forEach((product, index) => {
         // Check if we need a new page
@@ -395,10 +463,9 @@ export default function PriceListPage() {
         // Vertical separator
         pdf.line(colX, currentY, colX, currentY + rowHeight);
         
-        // Brand (truncate if too long)
+        // SKU (show only color and size part)
         pdf.setTextColor(100, 116, 139);
-        const brandName = product.brand.length > 12 ? product.brand.substring(0, 12) + '...' : product.brand;
-        pdf.text(brandName, colX + 2, currentY + 5);
+        pdf.text(getColorAndSize(product.sku), colX + 2, currentY + 5);
         colX += colWidths[2];
         
         // Vertical separator
@@ -417,7 +484,20 @@ export default function PriceListPage() {
         pdf.setTextColor(16, 185, 129);
         pdf.setFont('helvetica', 'bold');
         const priceText = `£${getPrice(product).toFixed(2)}`;
-        pdf.text(priceText, colX + colWidths[4] - 18, currentY + 5);
+        pdf.text(priceText, colX + colWidths[4] - 15, currentY + 5);
+        colX += colWidths[4];
+        
+        // Add RRP column for wholesale and club
+        if (needsRRPColumn) {
+          // Vertical separator
+          pdf.line(colX, currentY, colX, currentY + rowHeight);
+          
+          // RRP (Retail Recommended Price)
+          pdf.setTextColor(75, 85, 99);
+          pdf.setFont('helvetica', 'normal');
+          const rrpText = `£${(product.retail || 0).toFixed(2)}`;
+          pdf.text(rrpText, colX + colWidths[5] - 15, currentY + 5);
+        }
         
         currentY += rowHeight;
       });
@@ -437,16 +517,29 @@ export default function PriceListPage() {
   };
 
   const handleExport = () => {
+    const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
+    const headers = ['Article', 'Product Name', 'SKU', 'Category', getPriceLabel()];
+    if (needsRRPColumn) {
+      headers.push('RRP');
+    }
+    headers.push('Stock');
+    
     const csvContent = [
-      ['Article', 'Product Name', 'Brand', 'Category', getPriceLabel(), 'Stock'].join(','),
-      ...filteredProducts.map(product => [
-        product.article,
-        `"${product.title}"`,
-        product.brand,
-        product.category,
-        getPrice(product).toFixed(2),
-        product.variants?.reduce((total, variant) => total + variant.qty, 0) || 0
-      ].join(','))
+      headers.join(','),
+      ...filteredProducts.map((product: any) => {
+        const row = [
+          product.article,
+          `"${product.title}"`,
+          product.sku,
+          product.category,
+          getPrice(product).toFixed(2)
+        ];
+        if (needsRRPColumn) {
+          row.push((product.retail || 0).toFixed(2));
+        }
+        row.push(product.qty.toString());
+        return row.join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -628,8 +721,8 @@ export default function PriceListPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-semibold">Article</th>
-                    <th className="text-left py-3 px-4 font-semibold">Product Name</th>
-                    <th className="text-left py-3 px-4 font-semibold">Brand</th>
+                    <th className="text-left py-3 px-4 font-semibold w-1/4">Product Name</th>
+                    <th className="text-left py-3 px-4 font-semibold w-32">SKU</th>
                     <th className="text-left py-3 px-4 font-semibold">Category</th>
                     <th className="text-right py-3 px-4 font-semibold">
                       <div className="flex items-center justify-end gap-1">
@@ -637,6 +730,14 @@ export default function PriceListPage() {
                         {getPriceLabel()}
                       </div>
                     </th>
+                    {(filters.priceType === 'wholesale' || filters.priceType === 'club') && (
+                      <th className="text-right py-3 px-4 font-semibold">
+                        <div className="flex items-center justify-end gap-1">
+                          <DollarSign className="h-4 w-4" />
+                          RRP
+                        </div>
+                      </th>
+                    )}
                     <th className="text-center py-3 px-4 font-semibold">Stock</th>
                   </tr>
                 </thead>
@@ -662,7 +763,7 @@ export default function PriceListPage() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-gray-600 dark:text-gray-400">
-                          {product.brand}
+                          {product.sku}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -675,18 +776,20 @@ export default function PriceListPage() {
                           £{getPrice(product).toFixed(2)}
                         </span>
                       </td>
+                      {(filters.priceType === 'wholesale' || filters.priceType === 'club') && (
+                        <td className="py-3 px-4 text-right">
+                          <span className="font-semibold text-gray-600 dark:text-gray-400">
+                            £{(product.retail || 0).toFixed(2)}
+                          </span>
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-center">
-                        {(() => {
-                          const totalStock = product.variants?.reduce((total, variant) => total + variant.qty, 0) || 0;
-                          return (
-                            <Badge 
-                              variant={totalStock > 0 ? "default" : "secondary"}
-                              className={totalStock === 0 ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400" : ""}
-                            >
-                              {totalStock}
-                            </Badge>
-                          );
-                        })()}
+                        <Badge 
+                          variant={product.qty > 0 ? "default" : "secondary"}
+                          className={product.qty === 0 ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400" : ""}
+                        >
+                          {product.qty}
+                        </Badge>
                       </td>
                     </tr>
                   ))}
