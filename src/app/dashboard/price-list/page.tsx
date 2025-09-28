@@ -71,6 +71,7 @@ export default function PriceListPage() {
 
   const applyFilters = () => {
     const variants: any[] = [];
+    console.log('Applying filters with includeVariations:', filters.includeVariations);
 
     products.forEach(product => {
       // Apply filters to main product first
@@ -104,6 +105,20 @@ export default function PriceListPage() {
           });
         } else {
           // Add only the main product (without variations) or if no variants exist
+          console.log('Processing main product:', product.article, 'variants:', product.variants?.length);
+          
+          // Calculate total stock from all variants - same logic as when showing variations
+          let totalStock = 0;
+          
+          if (product.variants && product.variants.length > 0) {
+            // Sum up all variant quantities
+            totalStock = product.variants.reduce((total, variant) => {
+              console.log('Variant qty:', variant.qty);
+              return total + (variant.qty || 0);
+            }, 0);
+            console.log('Total stock calculated:', totalStock);
+          }
+            
           variants.push({
             id: product.id,
             article: product.article,
@@ -114,9 +129,9 @@ export default function PriceListPage() {
             wholesale: product.wholesale,
             retail: product.retail,
             club: product.club,
-            qty: 0,
+            qty: totalStock, // Total stock from all variants
             attributes: {},
-            variants: [] // Empty variants array
+            variants: product.variants || [] // Keep original variants for reference
           });
         }
       }
