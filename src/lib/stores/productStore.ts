@@ -17,29 +17,11 @@ class ProductStore {
       console.log('🏪 Store: Loading products from database...');
       const timestamp = Date.now();
       const response = await fetch(`/api/products?t=${timestamp}`);
-      console.log('🏪 Store: API response status:', response.status, response.ok);
       
       if (response.ok) {
         const fetchedProducts = await response.json();
-        console.log('🏪 Store: Raw API response sample:', fetchedProducts.slice(0, 2).map((p: any) => ({
-          article: p.article,
-          mediaMain: p.mediaMain,
-          hasMediaMain: !!p.mediaMain
-        })));
-        
         this.products = fetchedProducts;
         console.log('🏪 Store: Loaded products from database:', this.products.length);
-        
-        // Check for products with images in the store
-        const productsWithImages = this.products.filter(product => product.mediaMain && product.mediaMain.trim());
-        console.log('🏪 Store: Products with mediaMain:', productsWithImages.length, 'out of', this.products.length);
-        
-        if (productsWithImages.length > 0) {
-          console.log('🏪 Store: Sample product with image:', {
-            article: productsWithImages[0].article,
-            mediaMain: productsWithImages[0].mediaMain
-          });
-        }
       } else {
         console.error('🏪 Store: Failed to load products from database');
         this.products = [];
@@ -134,18 +116,7 @@ class ProductStore {
   }
 
   getProducts(): Product[] {
-    const products = [...this.products];
-    const productsWithImages = products.filter(product => product.mediaMain && product.mediaMain.trim());
-    console.log('🏪 Store.getProducts(): Returning', products.length, 'products,', productsWithImages.length, 'with images');
-    
-    if (productsWithImages.length > 0) {
-      console.log('🏪 Store.getProducts(): Sample product with image:', {
-        article: productsWithImages[0].article,
-        mediaMain: productsWithImages[0].mediaMain
-      });
-    }
-    
-    return products;
+    return [...this.products];
   }
 
   async addProduct(product: Product): Promise<void> {

@@ -37,46 +37,7 @@ interface PriceListFilters {
 export default function PriceListPage() {
   const { user } = useAuth();
   const { products, isLoading } = useProducts();
-  
-  // Alert to make sure our changes are working
-  console.log('🚨 PRICE LIST DEBUG: Component loaded with products:', products.length);
-  console.log('🚨 PRICE LIST DEBUG: Sample products:', products.slice(0, 3).map(p => ({
-    article: p?.article,
-    mediaMain: p?.mediaMain,
-    hasMediaMain: !!p?.mediaMain,
-    keys: Object.keys(p || {})
-  })));
-  
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
-  
-  // Debug what we're getting from the store
-  useEffect(() => {
-    console.log('🎯 PriceList useEffect triggered with:', {
-      productsLength: products.length,
-      isLoading,
-      hasProducts: products.length > 0
-    });
-    
-    if (products.length > 0) {
-      console.log('🎯 PriceList: First product structure:', {
-        keys: Object.keys(products[0]),
-        article: products[0].article,
-        mediaMain: products[0].mediaMain,
-        hasMediaMain: !!products[0].mediaMain
-      });
-      
-      const productsWithImages = products.filter(product => product.mediaMain && product.mediaMain.trim());
-      console.log('🎯 PriceList: Products from store with mediaMain:', productsWithImages.length, 'out of', products.length);
-      
-      if (productsWithImages.length > 0) {
-        console.log('🎯 PriceList: Sample product with image from store:', {
-          article: productsWithImages[0].article,
-          mediaMain: productsWithImages[0].mediaMain
-        });
-      }
-    }
-  }, [products, isLoading]);
-  
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [filters, setFilters] = useState<PriceListFilters>({

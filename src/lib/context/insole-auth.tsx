@@ -30,13 +30,15 @@ export function InsoleAuthProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     // Check if user is already logged in (from localStorage)
-    const storedUser = localStorage.getItem('insole_user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing stored insole user:', error);
-        localStorage.removeItem('insole_user');
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('insole_user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error('Error parsing stored insole user:', error);
+          localStorage.removeItem('insole_user');
+        }
       }
     }
     setIsLoading(false);
@@ -60,7 +62,9 @@ export function InsoleAuthProvider({ children }: { children: React.ReactNode }) 
         };
         
         setUser(testUser);
-        localStorage.setItem('insole_user', JSON.stringify(testUser));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('insole_user', JSON.stringify(testUser));
+        }
         return true;
       }
       
@@ -69,7 +73,9 @@ export function InsoleAuthProvider({ children }: { children: React.ReactNode }) 
       
       if (userData) {
         setUser(userData);
-        localStorage.setItem('insole_user', JSON.stringify(userData));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('insole_user', JSON.stringify(userData));
+        }
         return true;
       }
       
@@ -84,14 +90,17 @@ export function InsoleAuthProvider({ children }: { children: React.ReactNode }) 
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('insole_user');
-    // Redirect to main dashboard
-    window.location.href = '/';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('insole_user');
+      window.location.href = '/';
+    }
   };
 
   const updateUser = (userData: InsoleUser) => {
     setUser(userData);
-    localStorage.setItem('insole_user', JSON.stringify(userData));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('insole_user', JSON.stringify(userData));
+    }
   };
 
   const value = {
