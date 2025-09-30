@@ -37,7 +37,46 @@ interface PriceListFilters {
 export default function PriceListPage() {
   const { user } = useAuth();
   const { products, isLoading } = useProducts();
+  
+  // Alert to make sure our changes are working
+  console.log('🚨 PRICE LIST DEBUG: Component loaded with products:', products.length);
+  console.log('🚨 PRICE LIST DEBUG: Sample products:', products.slice(0, 3).map(p => ({
+    article: p?.article,
+    mediaMain: p?.mediaMain,
+    hasMediaMain: !!p?.mediaMain,
+    keys: Object.keys(p || {})
+  })));
+  
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  
+  // Debug what we're getting from the store
+  useEffect(() => {
+    console.log('🎯 PriceList useEffect triggered with:', {
+      productsLength: products.length,
+      isLoading,
+      hasProducts: products.length > 0
+    });
+    
+    if (products.length > 0) {
+      console.log('🎯 PriceList: First product structure:', {
+        keys: Object.keys(products[0]),
+        article: products[0].article,
+        mediaMain: products[0].mediaMain,
+        hasMediaMain: !!products[0].mediaMain
+      });
+      
+      const productsWithImages = products.filter(product => product.mediaMain && product.mediaMain.trim());
+      console.log('🎯 PriceList: Products from store with mediaMain:', productsWithImages.length, 'out of', products.length);
+      
+      if (productsWithImages.length > 0) {
+        console.log('🎯 PriceList: Sample product with image from store:', {
+          article: productsWithImages[0].article,
+          mediaMain: productsWithImages[0].mediaMain
+        });
+      }
+    }
+  }, [products, isLoading]);
+  
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
   const [filters, setFilters] = useState<PriceListFilters>({
@@ -94,6 +133,7 @@ export default function PriceListPage() {
               sku: variant.sku,
               category: product.category,
               brand: product.brand,
+              mediaMain: product.mediaMain, // ✅ Fixed: Include mediaMain field
               // Use variant pricing if available, otherwise product pricing
               wholesale: variant.wholesale ?? product.wholesale,
               retail: variant.retail ?? product.retail,
@@ -127,6 +167,7 @@ export default function PriceListPage() {
             sku: product.article, // Use article as SKU for main product
             category: product.category,
             brand: product.brand,
+            mediaMain: product.mediaMain, // ✅ Fixed: Include mediaMain field
             wholesale: product.wholesale,
             retail: product.retail,
             club: product.club,
@@ -236,20 +277,27 @@ export default function PriceListPage() {
       // Enhanced image loading for both uploaded and external images
       const loadImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
         try {
-          if (!imageUrl) return null;
+          if (!imageUrl) {
+            console.log('❌ No image URL provided');
+            return null;
+          }
           
-          console.log('Loading image:', imageUrl);
+          console.log('🔄 Loading image:', imageUrl);
           
           // Optimize Supabase images for PDF
           const optimizedUrl = ImageUploadService.optimizeImageUrl(imageUrl, 200, 200);
+          console.log('🔄 Optimized URL:', optimizedUrl);
           
-          // Check if it's a Supabase storage image or external image
+          // Check image source type
           const isSupabaseImage = imageUrl.includes('supabase');
           const isBykoImage = imageUrl.includes('byko.co.uk');
           
-          // Try different loading strategies based on image source
+          console.log('📍 Image type:', { isSupabaseImage, isBykoImage });
+          
+          // Method 1: Try fetch for Supabase and Byko images
           if (isSupabaseImage || isBykoImage) {
             try {
+              console.log('🌐 Trying fetch method...');
               const response = await fetch(optimizedUrl, { 
                 mode: 'cors',
                 credentials: 'omit',
@@ -258,32 +306,45 @@ export default function PriceListPage() {
                 }
               });
               
+              console.log('📡 Fetch response status:', response.status);
+              
               if (response.ok) {
                 const blob = await response.blob();
+                console.log('📦 Blob created, size:', blob.size);
+                
                 return new Promise((resolve) => {
                   const reader = new FileReader();
                   reader.onload = () => {
                     console.log('✅ Image loaded via fetch:', optimizedUrl);
                     resolve(reader.result as string);
                   };
-                  reader.onerror = () => resolve(null);
+                  reader.onerror = (error) => {
+                    console.log('❌ FileReader error:', error);
+                    resolve(null);
+                  };
                   reader.readAsDataURL(blob);
                 });
+              } else {
+                console.log('❌ Fetch failed with status:', response.status);
               }
             } catch (fetchError) {
               console.log('❌ Fetch error:', fetchError);
             }
           }
           
-          // Fallback to image element loading
+          // Method 2: Fallback to image element loading
+          console.log('🖼️ Trying image element method...');
           return new Promise((resolve) => {
             const img = new Image();
             
             img.onload = () => {
               try {
+                console.log('🖼️ Image element loaded, size:', img.width, 'x', img.height);
+                
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
+                  console.log('❌ Canvas context not available');
                   resolve(null);
                   return;
                 }
@@ -299,7 +360,7 @@ export default function PriceListPage() {
                 ctx.drawImage(img, 0, 0, width, height);
                 
                 const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-                console.log('✅ Image loaded via element:', imageUrl);
+                console.log('✅ Image processed via canvas:', optimizedUrl);
                 resolve(dataURL);
               } catch (canvasError) {
                 console.log('❌ Canvas conversion failed:', canvasError);
@@ -308,7 +369,7 @@ export default function PriceListPage() {
             };
             
             img.onerror = (error) => {
-              console.log('❌ Image loading failed:', imageUrl, error);
+              console.log('❌ Image element loading failed:', optimizedUrl, error);
               resolve(null);
             };
             
@@ -319,11 +380,11 @@ export default function PriceListPage() {
             
             img.src = optimizedUrl;
             
-            // Timeout after 10 seconds
+            // Timeout after 8 seconds
             setTimeout(() => {
-              console.log('⏱️ Image loading timeout:', imageUrl);
+              console.log('⏱️ Image loading timeout:', optimizedUrl);
               resolve(null);
-            }, 10000);
+            }, 8000);
           });
         } catch (error) {
           console.log('❌ Complete failure loading image:', error, imageUrl);
@@ -331,21 +392,47 @@ export default function PriceListPage() {
         }
       };
 
-      // Pre-load all product images
+      // Pre-load all product images with enhanced debugging
       const imageCache: { [key: string]: string | null } = {};
-      const imageLoadPromises = filteredProducts.map(async (product: any) => {
-        if (product.mediaMain) {
-          console.log('Loading image for product:', product.article, 'URL:', product.mediaMain);
-          const imageData = await loadImageAsBase64(product.mediaMain);
-          imageCache[product.id] = imageData;
-          console.log('Image loaded for', product.article, ':', imageData ? 'SUCCESS' : 'FAILED');
-        }
+      
+      console.log('📊 Filtered products sample:', filteredProducts.slice(0, 3).map(p => ({
+        article: p.article,
+        mediaMain: p.mediaMain,
+        hasMediaMain: !!p.mediaMain
+      })));
+      
+      const productsWithImages = filteredProducts.filter(product => product.mediaMain && product.mediaMain.trim());
+      
+      console.log('📊 Products with images:', productsWithImages.length, 'out of', filteredProducts.length);
+      
+      if (productsWithImages.length > 0) {
+        console.log('🖼️ Products with images:', productsWithImages.map(p => ({
+          article: p.article,
+          title: p.title,
+          imageUrl: p.mediaMain
+        })));
+      }
+      
+      const imageLoadPromises = productsWithImages.map(async (product: any) => {
+        console.log('🔄 Processing image for product:', product.article, 'URL:', product.mediaMain);
+        const imageData = await loadImageAsBase64(product.mediaMain);
+        imageCache[product.id] = imageData;
+        console.log('📋 Image result for', product.article, ':', imageData ? 'SUCCESS ✅' : 'FAILED ❌');
+        return { productId: product.id, success: !!imageData };
       });
       
       // Wait for all images to load
-      console.log('Loading', imageLoadPromises.length, 'product images...');
-      await Promise.all(imageLoadPromises);
-      console.log('All images loaded. Cache:', Object.keys(imageCache).length, 'items');
+      console.log('⏳ Loading', imageLoadPromises.length, 'product images...');
+      const results = await Promise.all(imageLoadPromises);
+      const successCount = results.filter(r => r.success).length;
+      console.log('📈 Image loading complete! Success:', successCount, '/', results.length);
+      console.log('💾 Image cache contents:', Object.keys(imageCache).length, 'items');
+      
+      // Debug: Show which images were loaded successfully
+      Object.entries(imageCache).forEach(([productId, imageData]) => {
+        const product = filteredProducts.find(p => p.id === productId);
+        console.log('🎯', product?.article, ':', imageData ? 'HAS IMAGE ✅' : 'NO IMAGE ❌');
+      });
 
       // Try to load logo
       let logoBase64: string | undefined;

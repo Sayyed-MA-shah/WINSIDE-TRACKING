@@ -576,8 +576,19 @@ export const getAllProducts = async (): Promise<Product[]> => {
       return [];
     }
 
+    // Check for products with images in raw database data
+    const productsWithImages = (data || []).filter(product => product.media_main && product.media_main.trim());
+    console.log('🗄️ DB: Raw products with media_main:', productsWithImages.length, 'out of', (data || []).length);
+    
+    if (productsWithImages.length > 0) {
+      console.log('🗄️ DB: Sample product with image:', {
+        article: productsWithImages[0].article,
+        media_main: productsWithImages[0].media_main
+      });
+    }
+
     // Transform database response to match Product interface
-    return (data || []).map(product => ({
+    const transformedProducts = (data || []).map(product => ({
       id: product.id,
       article: product.article,
       title: product.title,
@@ -596,6 +607,12 @@ export const getAllProducts = async (): Promise<Product[]> => {
       createdAt: new Date(product.created_at),
       updatedAt: new Date(product.updated_at)
     }));
+
+    // Check transformed products
+    const transformedWithImages = transformedProducts.filter(product => product.mediaMain && product.mediaMain.trim());
+    console.log('🗄️ DB: Transformed products with mediaMain:', transformedWithImages.length, 'out of', transformedProducts.length);
+
+    return transformedProducts;
   } catch (error) {
     console.error('Error in getAllProducts:', error);
     return [];
@@ -604,7 +621,11 @@ export const getAllProducts = async (): Promise<Product[]> => {
 
 export const addProduct = async (product: any): Promise<any> => {
   try {
-    console.log('DB: Starting addProduct with data:', JSON.stringify(product, null, 2));
+    console.log('🗄️ DB: Starting addProduct with data:', {
+      article: product.article,
+      mediaMain: product.mediaMain,
+      hasMediaMain: !!product.mediaMain
+    });
     
     const productData = {
       article: product.article,
@@ -623,7 +644,11 @@ export const addProduct = async (product: any): Promise<any> => {
       variants: product.variants || [] // FIXED: Include variants in product data
     };
 
-    console.log('DB: Transformed product data:', JSON.stringify(productData, null, 2));
+    console.log('🗄️ DB: Transformed product data (media_main field):', {
+      article: productData.article,
+      media_main: productData.media_main,
+      hasMediaMain: !!productData.media_main
+    });
 
     const { data, error } = await supabase
       .from('products')
@@ -667,6 +692,13 @@ export const addProduct = async (product: any): Promise<any> => {
 
 export const updateProduct = async (id: string, updates: any): Promise<any> => {
   try {
+    console.log('🗄️ DB: Starting updateProduct with updates:', {
+      id,
+      article: updates.article,
+      mediaMain: updates.mediaMain,
+      hasMediaMain: !!updates.mediaMain
+    });
+    
     const updateData: any = {};
     
     if (updates.article !== undefined) updateData.article = updates.article;
@@ -683,6 +715,13 @@ export const updateProduct = async (id: string, updates: any): Promise<any> => {
     if (updates.costBefore !== undefined) updateData.cost_before = updates.costBefore;
     if (updates.costAfter !== undefined) updateData.cost_after = updates.costAfter;
     if (updates.variants !== undefined) updateData.variants = updates.variants;
+
+    console.log('🗄️ DB: Transformed update data (media_main field):', {
+      id,
+      article: updateData.article,
+      media_main: updateData.media_main,
+      hasMediaMain: !!updateData.media_main
+    });
 
     const { data, error } = await supabase
       .from('products')

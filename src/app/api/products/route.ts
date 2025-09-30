@@ -6,6 +6,22 @@ export async function GET() {
     console.log('API: Attempting to fetch products...');
     const products = await getAllProducts();
     console.log('API: Successfully fetched products:', products.length);
+    
+    // Check for products with images
+    const productsWithImages = products.filter(product => product.mediaMain && product.mediaMain.trim());
+    console.log('🔍 API: Products with mediaMain:', productsWithImages.length, 'out of', products.length);
+    
+    if (productsWithImages.length > 0) {
+      console.log('🔍 API: Sample product with image:', {
+        article: productsWithImages[0].article,
+        mediaMain: productsWithImages[0].mediaMain
+      });
+      console.log('🔍 API: All products with images:', productsWithImages.map(p => ({
+        article: p.article,
+        mediaMain: p.mediaMain
+      })));
+    }
+    
     return NextResponse.json(products);
   } catch (error) {
     console.error('API: Error fetching products:', error);

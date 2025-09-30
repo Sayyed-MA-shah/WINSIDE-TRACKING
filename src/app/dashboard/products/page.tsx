@@ -104,6 +104,12 @@ export default function ProductsPage() {
   };
 
   const handleSaveProduct = async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    console.log('🏪 handleSaveProduct called with data:', {
+      article: productData.article,
+      mediaMain: productData.mediaMain,
+      hasMediaMain: !!productData.mediaMain
+    });
+    
     setActionLoading('save');
     try {
       if (editingProduct) {
@@ -119,7 +125,16 @@ export default function ProductsPage() {
             productId: editingProduct.id
           }))
         };
+        
+        console.log('📝 Updating existing product:', {
+          id: updatedProduct.id,
+          article: updatedProduct.article,
+          mediaMain: updatedProduct.mediaMain,
+          hasMediaMain: !!updatedProduct.mediaMain
+        });
+        
         await updateProduct(editingProduct.id, updatedProduct);
+        console.log('✅ Product updated successfully');
       } else {
         // Add new product
         const newProductId = generateId('product');
@@ -134,12 +149,21 @@ export default function ProductsPage() {
             productId: newProductId
           }))
         };
+        
+        console.log('➕ Adding new product:', {
+          id: newProduct.id,
+          article: newProduct.article,
+          mediaMain: newProduct.mediaMain,
+          hasMediaMain: !!newProduct.mediaMain
+        });
+        
         await addProduct(newProduct);
+        console.log('✅ Product added successfully');
       }
       setShowModal(false);
       setEditingProduct(null);
     } catch (error) {
-      console.error('Error saving product:', error);
+      console.error('❌ Error saving product:', error);
       // Error handling is managed by the store
     } finally {
       setActionLoading(null);

@@ -349,6 +349,13 @@ export default function ProductVariantModal({
     setErrors(validationErrors);
     
     if (validationErrors.length === 0) {
+      console.log('💾 Saving product with form data:', {
+        article: formData.article,
+        title: formData.title,
+        mediaMain: formData.mediaMain,
+        hasImage: !!formData.mediaMain
+      });
+      
       const productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> = {
         article: formData.article.trim(),
         title: formData.title.trim(),
@@ -370,7 +377,15 @@ export default function ProductVariantModal({
         }))
       };
       
+      console.log('💾 Final product data being saved:', {
+        article: productData.article,
+        mediaMain: productData.mediaMain,
+        hasMediaMain: !!productData.mediaMain
+      });
+
+      console.log('📤 Calling onSave with product data...');
       onSave(productData);
+      console.log('✅ onSave called successfully');
       onClose();
     }
   };
@@ -618,7 +633,13 @@ function BasicsStep({
         </label>
         <ImageUpload
           value={formData.mediaMain}
-          onChange={(url) => setFormData(prev => ({ ...prev, mediaMain: url || '' }))}
+          onChange={(url) => {
+            console.log('🖼️ Image URL changed:', url);
+            setFormData(prev => ({ 
+              ...prev, 
+              mediaMain: url || '' 
+            }));
+          }}
           disabled={false}
         />
       </div>
