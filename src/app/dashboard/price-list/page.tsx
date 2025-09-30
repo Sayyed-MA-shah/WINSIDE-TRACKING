@@ -22,6 +22,7 @@ import html2canvas from 'html2canvas';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useProducts } from '@/lib/stores/productStore';
 import { Product as ProductType } from '@/lib/types';
+import { ImageUploadService } from '@/lib/services/imageUploadService';
 
 
 
@@ -202,12 +203,25 @@ export default function PriceListPage() {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = 210;
       const pageHeight = 297;
-      const margin = 10; // Minimal margins for maximum table space
-      const contentWidth = pageWidth - (2 * margin); // 190mm available width
+      const margin = 15; // Increased margins for better presentation
+      const contentWidth = pageWidth - (2 * margin); // 180mm available width
       const contentHeight = pageHeight - (2 * margin);
       
       const categoryText = filters.category === 'all' ? 'All Categories' : filters.category;
       const priceTypeText = filters.priceType.charAt(0).toUpperCase() + filters.priceType.slice(1);
+      
+      // Professional color scheme
+      const colors = {
+        primary: [30, 64, 175], // Deep blue
+        secondary: [148, 163, 184], // Light gray
+        accent: [16, 185, 129], // Green for prices
+        background: [248, 250, 252], // Very light blue-gray
+        text: {
+          primary: [15, 23, 42], // Dark blue-gray
+          secondary: [71, 85, 105], // Medium gray
+          muted: [148, 163, 184] // Light gray
+        }
+      };
       
       // Helper function to extract color and size from SKU
       const getColorAndSize = (sku: string): string => {
@@ -218,6 +232,120 @@ export default function PriceListPage() {
         }
         return sku; // Return full SKU if format doesn't match expected pattern
       };
+
+      // Enhanced image loading for both uploaded and external images
+      const loadImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
+        try {
+          if (!imageUrl) return null;
+          
+          console.log('Loading image:', imageUrl);
+          
+          // Optimize Supabase images for PDF
+          const optimizedUrl = ImageUploadService.optimizeImageUrl(imageUrl, 200, 200);
+          
+          // Check if it's a Supabase storage image or external image
+          const isSupabaseImage = imageUrl.includes('supabase');
+          const isBykoImage = imageUrl.includes('byko.co.uk');
+          
+          // Try different loading strategies based on image source
+          if (isSupabaseImage || isBykoImage) {
+            try {
+              const response = await fetch(optimizedUrl, { 
+                mode: 'cors',
+                credentials: 'omit',
+                headers: {
+                  'Accept': 'image/*'
+                }
+              });
+              
+              if (response.ok) {
+                const blob = await response.blob();
+                return new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    console.log('✅ Image loaded via fetch:', optimizedUrl);
+                    resolve(reader.result as string);
+                  };
+                  reader.onerror = () => resolve(null);
+                  reader.readAsDataURL(blob);
+                });
+              }
+            } catch (fetchError) {
+              console.log('❌ Fetch error:', fetchError);
+            }
+          }
+          
+          // Fallback to image element loading
+          return new Promise((resolve) => {
+            const img = new Image();
+            
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                  resolve(null);
+                  return;
+                }
+                
+                // Optimize image size for PDF
+                const maxWidth = 200;
+                const scale = Math.min(maxWidth / img.width, maxWidth / img.height);
+                const width = img.width * scale;
+                const height = img.height * scale;
+                
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                console.log('✅ Image loaded via element:', imageUrl);
+                resolve(dataURL);
+              } catch (canvasError) {
+                console.log('❌ Canvas conversion failed:', canvasError);
+                resolve(null);
+              }
+            };
+            
+            img.onerror = (error) => {
+              console.log('❌ Image loading failed:', imageUrl, error);
+              resolve(null);
+            };
+            
+            // Set CORS for external images
+            if (!isSupabaseImage) {
+              img.crossOrigin = 'anonymous';
+            }
+            
+            img.src = optimizedUrl;
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+              console.log('⏱️ Image loading timeout:', imageUrl);
+              resolve(null);
+            }, 10000);
+          });
+        } catch (error) {
+          console.log('❌ Complete failure loading image:', error, imageUrl);
+          return null;
+        }
+      };
+
+      // Pre-load all product images
+      const imageCache: { [key: string]: string | null } = {};
+      const imageLoadPromises = filteredProducts.map(async (product: any) => {
+        if (product.mediaMain) {
+          console.log('Loading image for product:', product.article, 'URL:', product.mediaMain);
+          const imageData = await loadImageAsBase64(product.mediaMain);
+          imageCache[product.id] = imageData;
+          console.log('Image loaded for', product.article, ':', imageData ? 'SUCCESS' : 'FAILED');
+        }
+      });
+      
+      // Wait for all images to load
+      console.log('Loading', imageLoadPromises.length, 'product images...');
+      await Promise.all(imageLoadPromises);
+      console.log('All images loaded. Cache:', Object.keys(imageCache).length, 'items');
 
       // Try to load logo
       let logoBase64: string | undefined;
@@ -230,226 +358,394 @@ export default function PriceListPage() {
       let currentY = margin;
       let currentPage = 1;
       
-      // Calculate column widths based on variations setting and RRP requirement
+      // Calculate column widths - Professional spacing
       const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
-      const includeSKU = filters.includeVariations; // Only show SKU when showing variations
+      const includeSKU = filters.includeVariations;
+      const imageColumnWidth = 18; // Slightly smaller for more text space
       
-      let colWidths: number[];
-      if (includeSKU && needsRRPColumn) {
-        colWidths = [20, 55, 40, 30, 22, 22]; // Article, Product, SKU, Category, Wholesale, RRP (Total: 189mm)
-      } else if (includeSKU && !needsRRPColumn) {
-        colWidths = [28, 60, 43, 32, 25]; // Article, Product, SKU, Category, Price (Total: 188mm)
-      } else if (!includeSKU && needsRRPColumn) {
-        colWidths = [25, 80, 40, 22, 22]; // Article, Product, Category, Wholesale, RRP (Total: 189mm)
-      } else {
-        colWidths = [35, 85, 40, 25]; // Article, Product, Category, Price (Total: 185mm)
-      }
-      
-      // Header function (only for first page)
-      const addFirstPageHeader = (logoData?: string) => {
-        // Add logo if available
-        if (logoData) {
-          const logoWidth = 20; // 20mm width
-          const logoHeight = 15; // 15mm height
-          pdf.addImage(logoData, 'PNG', margin, currentY + 2, logoWidth, logoHeight);
-          
-          // Company name next to logo
-          pdf.setFontSize(20);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(15, 23, 42);
-          pdf.text('BYKO SPORTS', margin + logoWidth + 5, currentY + 15);
-        } else {
-          // Fallback without logo
-          pdf.setFontSize(20);
-          pdf.setFont('helvetica', 'bold');
-          pdf.setTextColor(15, 23, 42);
-          pdf.text('BYKO SPORTS', margin, currentY + 15);
+      // Helper function to get unique sizes from product variants
+      const getProductSizes = (product: any): string => {
+        if (!product.variants || product.variants.length === 0) return '--';
+        const sizes = [...new Set(product.variants.map((v: any) => v.attributes?.Size || v.attributes?.size).filter(Boolean))];
+        return sizes.join(', ') || '--';
+      };
+
+      // Helper function to get unique colors from product variants
+      const getProductColors = (product: any): string => {
+        if (!product.variants || product.variants.length === 0) return '--';
+        const colors = [...new Set(product.variants.map((v: any) => v.attributes?.Color || v.attributes?.color).filter(Boolean))];
+        return colors.join(', ') || '--';
+      };
+
+      // Conservative text wrapping to prevent unprofessional line breaks
+      const wrapText = (text: string, maxWidth: number, fontSize: number = 9): string[] => {
+        if (!text || text === '--') return [text || '--'];
+        
+        pdf.setFontSize(fontSize);
+        
+        // For very narrow columns (price columns), don't wrap - just truncate if needed
+        if (maxWidth < 20) {
+          const textWidth = pdf.getTextWidth(text);
+          if (textWidth <= maxWidth - 4) {
+            return [text];
+          } else {
+            // Truncate with ellipsis for narrow columns
+            let truncated = text;
+            while (pdf.getTextWidth(truncated + '...') > maxWidth - 4 && truncated.length > 1) {
+              truncated = truncated.slice(0, -1);
+            }
+            return [truncated + (truncated !== text ? '...' : '')];
+          }
         }
         
-        // Document title
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(71, 85, 105);
-        pdf.text('PRICE LIST', pageWidth - margin - 40, currentY + 15);
+        const words = text.split(' ');
+        const lines: string[] = [];
+        let currentLine = '';
         
-        // Date
+        for (const word of words) {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
+          const textWidth = pdf.getTextWidth(testLine);
+          
+          if (textWidth <= maxWidth - 6) { // Account for padding
+            currentLine = testLine;
+          } else {
+            if (currentLine) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              // Single word too long, truncate with ellipsis
+              let truncated = word;
+              while (pdf.getTextWidth(truncated + '...') > maxWidth - 6 && truncated.length > 1) {
+                truncated = truncated.slice(0, -1);
+              }
+              lines.push(truncated + (truncated !== word ? '...' : ''));
+              currentLine = '';
+            }
+          }
+        }
+        
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        
+        // Limit to maximum 3 lines for professional appearance
+        return lines.slice(0, 3);
+      };
+
+      // Enhanced text rendering with proper line spacing
+      const renderMultiLineText = (lines: string[], x: number, y: number, lineHeight: number = 3, alignment: 'left' | 'center' | 'right' = 'left', colWidth?: number) => {
+        lines.forEach((line, index) => {
+          const lineY = y + (index * lineHeight);
+          let textX = x;
+          
+          if (alignment === 'center' && colWidth) {
+            const textWidth = pdf.getTextWidth(line);
+            textX = x + (colWidth - textWidth) / 2;
+          } else if (alignment === 'right' && colWidth) {
+            const textWidth = pdf.getTextWidth(line);
+            textX = x + colWidth - textWidth - 3;
+          } else {
+            textX = x + 3; // Left padding
+          }
+          
+          pdf.text(line, textX, lineY);
+        });
+        
+        return lines.length * lineHeight; // Return total height used
+      };
+      
+      let colWidths: number[];
+      // Precisely calculated for A4 page - Total: 180mm (page width 210mm - 30mm margins)
+      if (includeSKU && needsRRPColumn) {
+        // 8 columns: Image, Article, Product, SKU, Sizes, Colors, Wholesale, RRP
+        colWidths = [16, 16, 44, 22, 26, 26, 15, 15]; // Total: 180mm
+      } else if (includeSKU && !needsRRPColumn) {
+        // 7 columns: Image, Article, Product, SKU, Sizes, Colors, Price
+        colWidths = [16, 18, 50, 24, 28, 28, 16]; // Total: 180mm
+      } else if (!includeSKU && needsRRPColumn) {
+        // 7 columns: Image, Article, Product, Sizes, Colors, Wholesale, RRP
+        colWidths = [16, 20, 54, 30, 30, 15, 15]; // Total: 180mm
+      } else {
+        // 6 columns: Image, Article, Product, Sizes, Colors, Price
+        colWidths = [16, 24, 60, 32, 32, 16]; // Total: 180mm
+      }
+      
+      // Professional header function for first page
+      const addFirstPageHeader = (logoData?: string) => {
+        // Header background with gradient effect
+        pdf.setFillColor(colors.background[0], colors.background[1], colors.background[2]);
+        pdf.rect(margin, currentY, contentWidth, 45, 'F');
+        
+        // Top border accent
+        pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        pdf.rect(margin, currentY, contentWidth, 3, 'F');
+        
+        currentY += 8;
+        
+        // Add logo if available
+        if (logoData) {
+          const logoWidth = 25;
+          const logoHeight = 20;
+          pdf.addImage(logoData, 'PNG', margin + 5, currentY, logoWidth, logoHeight);
+          
+          // Company name next to logo
+          pdf.setFontSize(22);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+          pdf.text('BYKO SPORTS', margin + logoWidth + 10, currentY + 12);
+          
+          // Tagline
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+          pdf.text('Professional Sports Equipment', margin + logoWidth + 10, currentY + 18);
+        } else {
+          // Fallback without logo
+          pdf.setFontSize(22);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+          pdf.text('BYKO SPORTS', margin + 5, currentY + 12);
+          
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+          pdf.text('Professional Sports Equipment', margin + 5, currentY + 18);
+        }
+        
+        // Document title - right aligned
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        const titleText = `${priceTypeText} Price List`;
+        const titleWidth = pdf.getTextWidth(titleText);
+        pdf.text(titleText, pageWidth - margin - titleWidth - 5, currentY + 12);
+        
+        // Date - right aligned
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 116, 139);
+        pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
         const dateText = new Date().toLocaleDateString('en-GB', { 
-          weekday: 'long',
           year: 'numeric', 
           month: 'long', 
           day: 'numeric' 
         });
-        pdf.text(`Generated: ${dateText}`, pageWidth - margin - 60, currentY + 25);
+        const dateWidth = pdf.getTextWidth(`Generated: ${dateText}`);
+        pdf.text(`Generated: ${dateText}`, pageWidth - margin - dateWidth - 5, currentY + 20);
         
-        // Blue line
-        pdf.setDrawColor(59, 130, 246);
-        pdf.setLineWidth(1);
-        pdf.line(margin, currentY + 35, pageWidth - margin, currentY + 35);
+        currentY += 40;
         
-        currentY += 50;
-        
-        // Filter information box (removed pricing type)
-        pdf.setFillColor(248, 250, 252);
-        pdf.rect(margin, currentY, contentWidth, 20, 'F');
-        
-        // Blue left border
-        pdf.setFillColor(59, 130, 246);
-        pdf.rect(margin, currentY, 2, 20, 'F');
-        
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(71, 85, 105);
-        
-        let filterX = margin + 10;
-        pdf.text('CATEGORY:', filterX, currentY + 8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(categoryText, filterX + 25, currentY + 8);
-        
-        filterX += 80;
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(71, 85, 105);
-        pdf.text('TOTAL PRODUCTS:', filterX, currentY + 8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(filteredProducts.length.toString(), filterX + 35, currentY + 8);
-        
-        currentY += 35;
-      };
-      
-      // Simple header for subsequent pages
-      const addSimpleHeader = () => {
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(71, 85, 105);
-        pdf.text('BYKO SPORTS - PRICE LIST', margin, currentY + 15);
-        
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 116, 139);
-        pdf.text(categoryText, pageWidth - margin - 40, currentY + 15);
-        
-        // Simple line
-        pdf.setDrawColor(226, 232, 240);
+        // Filter information section with better styling
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
         pdf.setLineWidth(0.5);
-        pdf.line(margin, currentY + 20, pageWidth - margin, currentY + 20);
+        pdf.roundedRect(margin, currentY, contentWidth, 25, 3, 3, 'FD');
+        
+        // Blue accent border
+        pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        pdf.roundedRect(margin, currentY, 4, 25, 2, 2, 'F');
+        
+        currentY += 8;
+        
+        // Filter information with better layout
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        
+        let filterX = margin + 15;
+        pdf.text('CATEGORY:', filterX, currentY + 6);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+        pdf.text(categoryText, filterX + 25, currentY + 6);
+        
+        filterX += 90;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        pdf.text('PRODUCTS:', filterX, currentY + 6);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+        pdf.text(filteredProducts.length.toString(), filterX + 25, currentY + 6);
+        
+        filterX += 60;
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        pdf.text('PRICING:', filterX, currentY + 6);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+        pdf.text(priceTypeText, filterX + 25, currentY + 6);
         
         currentY += 30;
       };
       
-      // Table header function
+      // Professional simple header for subsequent pages
+      const addSimpleHeader = () => {
+        // Clean header background
+        pdf.setFillColor(colors.background[0], colors.background[1], colors.background[2]);
+        pdf.rect(margin, currentY, contentWidth, 25, 'F');
+        
+        // Top accent line
+        pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        pdf.rect(margin, currentY, contentWidth, 2, 'F');
+        
+        currentY += 8;
+        
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+        pdf.text('BYKO SPORTS - PRICE LIST', margin + 5, currentY + 8);
+        
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+        const pageInfo = `${categoryText} | Page ${currentPage}`;
+        const pageInfoWidth = pdf.getTextWidth(pageInfo);
+        pdf.text(pageInfo, pageWidth - margin - pageInfoWidth - 5, currentY + 8);
+        
+        currentY += 20;
+      };
+      
+      // Premium table header function with enhanced design
       const addTableHeader = () => {
-        // Header background
-        pdf.setFillColor(15, 23, 42);
-        pdf.rect(margin, currentY, contentWidth, 12, 'F');
+        const headerHeight = 18; // Increased height for premium look
         
-        // Add column separators for better visual structure
-        pdf.setDrawColor(255, 255, 255);
-        pdf.setLineWidth(0.2);
+        // Premium header background with gradient effect
+        pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        pdf.roundedRect(margin, currentY, contentWidth, headerHeight, 2, 2, 'F');
         
-        pdf.setFontSize(8);
+        // Subtle shadow effect
+        pdf.setFillColor(0, 0, 0, 0.1);
+        pdf.roundedRect(margin + 1, currentY + 1, contentWidth, headerHeight, 2, 2, 'F');
+        pdf.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+        pdf.roundedRect(margin, currentY, contentWidth, headerHeight, 2, 2, 'F');
+        
+        // Header text styling - increased font size and perfect centering
+        pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(255, 255, 255);
         
-        let colX = margin + 2;
+        let colX = margin;
         let colIndex = 0;
+        const textY = currentY + headerHeight / 2 + 2; // Perfect vertical centering
         
-        pdf.text('ARTICLE', colX, currentY + 8);
+        // Image column header - centered
+        const imageHeaderText = 'IMAGE';
+        const imageTextWidth = pdf.getTextWidth(imageHeaderText);
+        pdf.text(imageHeaderText, colX + (colWidths[colIndex] - imageTextWidth) / 2, textY);
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + 12);
-        
-        pdf.text('PRODUCT NAME', colX + 2, currentY + 8);
+        // Article header - left aligned with padding
+        pdf.text('ARTICLE', colX + 4, textY);
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + 12);
+        // Product name header - left aligned with padding
+        pdf.text('PRODUCT NAME', colX + 4, textY);
+        colX += colWidths[colIndex++];
         
-        // Only show SKU column if including variations
+        // SKU header (if including variations)
         if (includeSKU) {
-          pdf.text('SKU', colX + 2, currentY + 8);
+          const skuTextWidth = pdf.getTextWidth('SKU');
+          pdf.text('SKU', colX + (colWidths[colIndex] - skuTextWidth) / 2, textY);
           colX += colWidths[colIndex++];
-          
-          // Vertical separator
-          pdf.line(colX, currentY, colX, currentY + 12);
         }
         
-        pdf.text('CATEGORY', colX + 2, currentY + 8);
+        // Size header - centered
+        const sizeTextWidth = pdf.getTextWidth('SIZES');
+        pdf.text('SIZES', colX + (colWidths[colIndex] - sizeTextWidth) / 2, textY);
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + 12);
-        
-        // Price header
-        const priceLabel = filters.priceType === 'wholesale' ? 'WHOLESALE (£)' : 
-                          filters.priceType === 'club' ? 'CLUB PRICE (£)' : 'PRICE (£)';
-        
-        // Use smaller font for longer headers
-        if (priceLabel.length > 10) {
-          pdf.setFontSize(7);
-        }
-        pdf.text(priceLabel, colX + 2, currentY + 8);
-        if (priceLabel.length > 10) {
-          pdf.setFontSize(8); // Reset font size
-        }
+        // Color header - centered
+        const colorTextWidth = pdf.getTextWidth('COLORS');
+        pdf.text('COLORS', colX + (colWidths[colIndex] - colorTextWidth) / 2, textY);
         colX += colWidths[colIndex++];
         
-        // Add RRP column for wholesale and club
+        // Price header with £ symbol - centered
+        const priceLabelWidth = pdf.getTextWidth('£');
+        pdf.text('£', colX + (colWidths[colIndex] - priceLabelWidth) / 2, textY);
+        colX += colWidths[colIndex++];
+        
+        // RRP header (if needed)
         if (needsRRPColumn) {
-          // Vertical separator
-          pdf.line(colX, currentY, colX, currentY + 12);
-          
-          pdf.text('RRP (£)', colX + 2, currentY + 8);
+          const rrpWidth = pdf.getTextWidth('RRP');
+          pdf.text('RRP', colX + (colWidths[colIndex] - rrpWidth) / 2, textY);
         }
         
-        currentY += 12;
+        currentY += headerHeight;
+        
+        // Premium separator line with gradient effect
+        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, currentY, pageWidth - margin, currentY);
+        currentY += 3; // Extra spacing after header
       };
       
-      // Footer function
+      // Professional footer function
       const addFooter = () => {
-        pdf.setDrawColor(226, 232, 240);
+        const footerY = pageHeight - 35;
+        
+        // Footer separator line
+        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
         pdf.setLineWidth(0.5);
-        pdf.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30);
+        pdf.line(margin, footerY, pageWidth - margin, footerY);
         
-        pdf.setFontSize(8);
+        // Company information
+        pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(71, 85, 105);
-        pdf.text('BYKO SPORTS', margin, pageHeight - 20);
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
+        pdf.text('BYKO SPORTS', margin, footerY + 12);
         
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(148, 163, 184);
-        pdf.text('Professional Sports Equipment', margin, pageHeight - 15);
-        
-        pdf.setFontSize(7);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text(`Document generated on ${new Date().toLocaleString('en-GB')}`, pageWidth - margin - 60, pageHeight - 20);
-        
-        pdf.setFontSize(6);
-        pdf.setTextColor(148, 163, 184);
-        pdf.text('For internal use only', pageWidth - margin - 30, pageHeight - 15);
-        
-        // Page numbers
         pdf.setFontSize(8);
-        pdf.setTextColor(150, 150, 150);
-        const totalPages = Math.ceil(filteredProducts.length / 25) + 1; // Rough estimate
-        pdf.text(`Page ${currentPage}`, pageWidth - margin - 20, pageHeight - 10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        pdf.text('Professional Sports Equipment', margin, footerY + 18);
+        
+        // Generation info - right aligned
+        pdf.setFontSize(8);
+        pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+        const genText = `Generated: ${new Date().toLocaleDateString('en-GB')}`;
+        const genWidth = pdf.getTextWidth(genText);
+        pdf.text(genText, pageWidth - margin - genWidth, footerY + 12);
+        
+        // Confidentiality notice
+        pdf.setFontSize(7);
+        const confText = 'Confidential - For Internal Use Only';
+        const confWidth = pdf.getTextWidth(confText);
+        pdf.text(confText, pageWidth - margin - confWidth, footerY + 18);
+        
+        // Page number - centered
+        pdf.setFontSize(9);
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        const pageText = `${currentPage}`;
+        const pageTextWidth = pdf.getTextWidth(pageText);
+        pdf.text(pageText, (pageWidth - pageTextWidth) / 2, footerY + 25);
       };
       
       // Start first page  
       addFirstPageHeader(logoBase64);
       addTableHeader();
       
-      // Add products
-      const rowHeight = 8;
+      // Professional product rows with controlled height and precise layout
+      const baseRowHeight = 12; // Professional minimum height
+      const lineHeight = 3.2; // Tighter line spacing for cleaner look
       
       filteredProducts.forEach((product, index) => {
-        // Check if we need a new page
-        if (currentY + rowHeight > pageHeight - 50) {
+        // Pre-calculate text content with conservative wrapping
+        const productNameLines = wrapText(product.title, colWidths[includeSKU ? 2 : 2], 9);
+        const sizesText = getProductSizes(product);
+        const sizesLines = wrapText(sizesText, colWidths[includeSKU ? 4 : 3], 8);
+        const colorsText = getProductColors(product);
+        const colorsLines = wrapText(colorsText, colWidths[includeSKU ? 5 : 4], 8);
+        
+        // Calculate required row height - max 3 lines for professional look
+        const maxLines = Math.min(Math.max(
+          productNameLines.length,
+          sizesLines.length,
+          colorsLines.length,
+          1
+        ), 3); // Maximum 3 lines to prevent excessive height
+        
+        const dynamicRowHeight = Math.max(baseRowHeight, 8 + (maxLines * lineHeight));
+        
+        // Check if we need a new page (improved calculation for dynamic heights)
+        if (currentY + dynamicRowHeight > pageHeight - 70) { // Increased footer space
           addFooter();
           pdf.addPage();
           currentPage++;
@@ -458,81 +754,117 @@ export default function PriceListPage() {
           addTableHeader();
         }
         
-        // Row background
+        // Premium zebra striping with better contrast
         if (index % 2 === 1) {
-          pdf.setFillColor(248, 250, 252);
-          pdf.rect(margin, currentY, contentWidth, rowHeight, 'F');
+          pdf.setFillColor(colors.background[0], colors.background[1], colors.background[2]);
+          pdf.rect(margin, currentY, contentWidth, dynamicRowHeight, 'F');
         }
         
-        // Light column separators
-        pdf.setDrawColor(226, 232, 240);
+        // Subtle row borders for professional look
+        pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
         pdf.setLineWidth(0.1);
+        pdf.line(margin, currentY + dynamicRowHeight, pageWidth - margin, currentY + dynamicRowHeight);
         
-        // Row data
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'normal');
-        
-        let colX = margin + 2;
+        // Column separators
+        let colX = margin;
         let colIndex = 0;
+        const textStartY = currentY + 6; // Top padding
         
-        // Article
-        pdf.setTextColor(71, 85, 105);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(product.article, colX, currentY + 5);
+        // Image column with enhanced styling (16mm width)
+        const productImage = imageCache[product.id];
+        if (productImage) {
+          try {
+            const imgWidth = colWidths[colIndex] - 8; // Better padding
+            const imgHeight = Math.min(dynamicRowHeight - 6, 10); // Constrain height
+            const imgY = currentY + (dynamicRowHeight - imgHeight) / 2; // Center vertically
+            pdf.addImage(productImage, 'JPEG', colX + 4, imgY, imgWidth, imgHeight);
+          } catch (error) {
+            // Enhanced placeholder design
+            const placeholderHeight = Math.min(dynamicRowHeight - 6, 10);
+            const placeholderY = currentY + (dynamicRowHeight - placeholderHeight) / 2;
+            pdf.setFillColor(250, 250, 250);
+            pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+            pdf.setLineWidth(0.5);
+            pdf.roundedRect(colX + 4, placeholderY, colWidths[colIndex] - 8, placeholderHeight, 1, 1, 'FD');
+            pdf.setFontSize(7);
+            pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+            pdf.text('IMG', colX + colWidths[colIndex]/2 - 3, placeholderY + placeholderHeight/2 + 1);
+          }
+        } else {
+          // Professional "no image" placeholder
+          const placeholderHeight = Math.min(dynamicRowHeight - 6, 10);
+          const placeholderY = currentY + (dynamicRowHeight - placeholderHeight) / 2;
+          pdf.setFillColor(250, 250, 250);
+          pdf.setDrawColor(colors.secondary[0], colors.secondary[1], colors.secondary[2]);
+          pdf.setLineWidth(0.3);
+          pdf.roundedRect(colX + 4, placeholderY, colWidths[colIndex] - 8, placeholderHeight, 1, 1, 'FD');
+          pdf.setFontSize(7);
+          pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+          pdf.text('--', colX + colWidths[colIndex]/2 - 2, placeholderY + placeholderHeight/2 + 1);
+        }
+        
+        // Column positioning (no separators)
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + rowHeight);
+        // Article number with emphasis
+        pdf.setFontSize(9);
+        pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(product.article, colX + 3, textStartY + 3);
         
-        // Product name (truncate to fit column width)
-        pdf.setTextColor(15, 23, 42);
+        colX += colWidths[colIndex++];
+        
+        // Product name with full content display
+        pdf.setTextColor(colors.text.primary[0], colors.text.primary[1], colors.text.primary[2]);
         pdf.setFont('helvetica', 'normal');
-        const productName = product.title.length > 32 ? product.title.substring(0, 32) + '...' : product.title;
-        pdf.text(productName, colX + 2, currentY + 5);
+        pdf.setFontSize(9);
+        renderMultiLineText(productNameLines, colX, textStartY + 3, lineHeight, 'left');
+        
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + rowHeight);
-        
-        // SKU (show only color and size part) - only if including variations
+        // SKU (if including variations)
         if (includeSKU) {
-          pdf.setTextColor(100, 116, 139);
-          pdf.text(getColorAndSize(product.sku), colX + 2, currentY + 5);
+          pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+          pdf.setFontSize(8);
+          const skuText = getColorAndSize(product.sku);
+          const skuLines = wrapText(skuText, colWidths[colIndex], 8);
+          renderMultiLineText(skuLines, colX, textStartY + 3, lineHeight, 'center', colWidths[colIndex]);
+          
           colX += colWidths[colIndex++];
-          
-          // Vertical separator
-          pdf.line(colX, currentY, colX, currentY + rowHeight);
         }
         
-        // Category (truncate if too long)
-        pdf.setTextColor(100, 116, 139);
-        const categoryName = product.category.length > 12 ? product.category.substring(0, 12) + '...' : product.category;
-        pdf.text(categoryName, colX + 2, currentY + 5);
+        // Sizes with full content display
+        pdf.setTextColor(colors.text.muted[0], colors.text.muted[1], colors.text.muted[2]);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        renderMultiLineText(sizesLines, colX, textStartY + 3, lineHeight, 'center', colWidths[colIndex]);
+        
         colX += colWidths[colIndex++];
         
-        // Vertical separator
-        pdf.line(colX, currentY, colX, currentY + rowHeight);
+        // Colors with full content display
+        renderMultiLineText(colorsLines, colX, textStartY + 3, lineHeight, 'center', colWidths[colIndex]);
         
-        // Price (right-aligned within column)
-        pdf.setTextColor(16, 185, 129);
+        colX += colWidths[colIndex++];
+        
+        // Price with enhanced formatting
+        pdf.setTextColor(colors.accent[0], colors.accent[1], colors.accent[2]);
         pdf.setFont('helvetica', 'bold');
-        const priceText = `£${getPrice(product).toFixed(2)}`;
-        pdf.text(priceText, colX + colWidths[colIndex] - 15, currentY + 5);
+        pdf.setFontSize(10);
+        const priceText = `${getPrice(product).toFixed(2)}`;
+        renderMultiLineText([priceText], colX, textStartY + 3, lineHeight, 'right', colWidths[colIndex]);
+        
         colX += colWidths[colIndex++];
         
-        // Add RRP column for wholesale and club
+        // RRP with enhanced formatting
         if (needsRRPColumn) {
-          // Vertical separator
-          pdf.line(colX, currentY, colX, currentY + rowHeight);
-          
-          // RRP (Retail Recommended Price)
-          pdf.setTextColor(75, 85, 99);
+          pdf.setTextColor(colors.text.secondary[0], colors.text.secondary[1], colors.text.secondary[2]);
           pdf.setFont('helvetica', 'normal');
-          const rrpText = `£${(product.retail || 0).toFixed(2)}`;
-          pdf.text(rrpText, colX + colWidths[colIndex] - 15, currentY + 5);
+          pdf.setFontSize(9);
+          const rrpText = `${(product.retail || 0).toFixed(2)}`;
+          renderMultiLineText([rrpText], colX, textStartY + 3, lineHeight, 'right', colWidths[colIndex]);
         }
         
-        currentY += rowHeight;
+        currentY += dynamicRowHeight;
       });
       
       // Add final footer
@@ -551,13 +883,27 @@ export default function PriceListPage() {
 
   const handleExport = () => {
     const needsRRPColumn = filters.priceType === 'wholesale' || filters.priceType === 'club';
-    const includeSKU = filters.includeVariations; // Only show SKU when showing variations
+    const includeSKU = filters.includeVariations;
+    
+    // Helper function to get unique sizes from product variants (full content)
+    const getProductSizes = (product: any): string => {
+      if (!product.variants || product.variants.length === 0) return '--';
+      const sizes = [...new Set(product.variants.map((v: any) => v.attributes?.Size || v.attributes?.size).filter(Boolean))];
+      return sizes.join(', ') || '--';
+    };
+
+    // Helper function to get unique colors from product variants (full content)
+    const getProductColors = (product: any): string => {
+      if (!product.variants || product.variants.length === 0) return '--';
+      const colors = [...new Set(product.variants.map((v: any) => v.attributes?.Color || v.attributes?.color).filter(Boolean))];
+      return colors.join(', ') || '--';
+    };
     
     const headers = ['Article', 'Product Name'];
     if (includeSKU) {
       headers.push('SKU');
     }
-    headers.push('Category', getPriceLabel());
+    headers.push('Sizes', 'Colors', getPriceLabel());
     if (needsRRPColumn) {
       headers.push('RRP');
     }
@@ -568,13 +914,14 @@ export default function PriceListPage() {
       ...filteredProducts.map((product: any) => {
         const row = [
           product.article,
-          `"${product.title}"`
+          `"${product.title}"` // Full product name without truncation
         ];
         if (includeSKU) {
           row.push(product.sku);
         }
         row.push(
-          product.category,
+          `"${getProductSizes(product)}"`, // Full sizes without truncation
+          `"${getProductColors(product)}"`, // Full colors without truncation
           getPrice(product).toFixed(2)
         );
         if (needsRRPColumn) {

@@ -7,7 +7,8 @@ export const getAllCategories = async (): Promise<any[]> => {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
-      .order('name');
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true }); // Fallback to name if sort_order is same
 
     if (error) {
       console.error('Error fetching categories:', error);
@@ -91,6 +92,30 @@ export const deleteCategory = async (id: string): Promise<boolean> => {
     throw error;
   }
 };
+
+export const updateCategoriesOrder = async (categories: Array<{id: string, sort_order: number}>): Promise<boolean> => {
+  try {
+    // Update all categories in a transaction-like manner
+    const updatePromises = categories.map(async (cat) => {
+      const { error } = await supabase
+        .from('categories')
+        .update({ sort_order: cat.sort_order })
+        .eq('id', cat.id);
+      
+      if (error) {
+        console.error('Error updating category order:', error);
+        throw error;
+      }
+    });
+
+    await Promise.all(updatePromises);
+    return true;
+  } catch (error) {
+    console.error('Error in updateCategoriesOrder:', error);
+    throw error;
+  }
+};
+
 import { Product, Customer, Invoice } from '@/lib/types';
 
 // Stock management functions

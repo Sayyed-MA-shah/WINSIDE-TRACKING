@@ -1,0 +1,8 @@
+<!-- Simple SVG placeholder for missing product images -->
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="400" fill="#F3F4F6"/>
+  <path d="M175 150H225V175H250V225H225V250H175V225H150V175H175V150Z" fill="#9CA3AF"/>
+  <path d="M120 300H280C286.627 300 292 294.627 292 288V112C292 105.373 286.627 100 280 100H120C113.373 100 108 105.373 108 112V288C108 294.627 113.373 300 120 300Z" stroke="#9CA3AF" stroke-width="4"/>
+  <circle cx="150" cy="140" r="15" fill="#9CA3AF"/>
+  <text x="200" y="340" text-anchor="middle" fill="#6B7280" font-family="Arial, sans-serif" font-size="16">No Image</text>
+</svg>

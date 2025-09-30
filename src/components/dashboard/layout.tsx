@@ -25,7 +25,8 @@ import {
   User,
   Database,
   Heart,
-  Receipt
+  Receipt,
+  Tags
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -135,6 +136,11 @@ export function DashboardLayout({ children }: SidebarProps) {
       name: 'Backup & Restore',
       href: '/dashboard/admin/backup',
       icon: Database,
+    },
+    {
+      name: 'Categories',
+      href: '/dashboard/categories',
+      icon: Tags,
     }
   ] : [];
 

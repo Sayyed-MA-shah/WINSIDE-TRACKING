@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,7 @@ export default function StockPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<Brand | 'all'>('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
+  const [availableCategories, setAvailableCategories] = useState<any[]>([]);
   
   // Stock adjustment modal states
   const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
@@ -127,7 +128,22 @@ export default function StockPage() {
     return stockItems;
   }, [products, selectedBrand, getProductsByBrand]);
 
-  const categories = Array.from(new Set(stockData.map(item => item.category)));
+  // Fetch categories from API to maintain proper order
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableCategories(data);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const filteredStock = stockData.filter(item => {
     const matchesSearch = 

@@ -10,6 +10,7 @@ import {
   validateSKUUniqueness, 
   calculateVariantSummary 
 } from '@/lib/utils';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 
 interface Category {
   id: string;
@@ -613,29 +614,13 @@ function BasicsStep({
       
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Main Image URL (optional)
+          Product Image
         </label>
-        <input
-          type="url"
+        <ImageUpload
           value={formData.mediaMain}
-          onChange={(e) => setFormData(prev => ({ ...prev, mediaMain: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          placeholder="https://example.com/image.jpg"
+          onChange={(url) => setFormData(prev => ({ ...prev, mediaMain: url || '' }))}
+          disabled={false}
         />
-        {formData.mediaMain && (
-          <div className="mt-3 flex items-center space-x-3">
-            <Image className="w-5 h-5 text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">Preview:</span>
-            <img
-              src={formData.mediaMain}
-              alt="Preview"
-              className="w-16 h-16 object-cover rounded border"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
-        )}
       </div>
       
       {/* Global Pricing Section */}
