@@ -144,6 +144,15 @@ export function DashboardLayout({ children }: SidebarProps) {
     }
   ] : [];
 
+  // Add Harican brand portal access
+  const haricanNavigation: RegularNavItem[] = [
+    {
+      name: 'HARICAN PORTAL',
+      href: '/dashboard/harican',
+      icon: Package, // Using Package icon for brand portal
+    }
+  ];
+
   // Add insole clinic access
   const insoleNavigation: SpecialNavItem[] = [
     {
@@ -155,7 +164,7 @@ export function DashboardLayout({ children }: SidebarProps) {
     }
   ];
 
-  const allNavigation: NavItem[] = [...navigation, ...adminNavigation, ...insoleNavigation];
+  const allNavigation: NavItem[] = [...navigation, ...adminNavigation, ...haricanNavigation, ...insoleNavigation];
 
   return (
     <AuthGuard>
